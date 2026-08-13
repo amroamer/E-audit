@@ -1,0 +1,897 @@
+<title>ZATCA VAT Mistakes Rulebook</title>
+<style>
+:root{
+  --brand:#0E6B57; --brand-deep:#0A4C40; --brand-tint:#E6F0EB;
+  --gold:#A9803F;
+  --bg:#EDF2EF; --surface:#FFFFFF; --surface-2:#F5F9F7; --raise:#FFFFFF;
+  --ink:#14201C; --muted:#5B6A63; --faint:#8A968F; --line:#DCE6E0;
+  --high:#B23A36; --high-bg:#F7E7E6; --med:#A9761E; --med-bg:#F6EDDD; --low:#2C7A58; --low-bg:#E2F0E9;
+  --shadow:0 1px 2px rgba(16,40,32,.05), 0 8px 24px -14px rgba(16,40,32,.18);
+  --radius:14px;
+  --sans:ui-sans-serif,system-ui,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --mono:ui-monospace,"Cascadia Code","SF Mono",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --brand:#3FB79A; --brand-deep:#2C8C76; --brand-tint:#132A23;
+  --gold:#C9A15C;
+  --bg:#0C1310; --surface:#131C18; --surface-2:#0F1713; --raise:#16211B;
+  --ink:#E9F1EC; --muted:#9BADA4; --faint:#6E7E76; --line:#243029;
+  --high:#E4736E; --high-bg:#2A1917; --med:#D6A44E; --med-bg:#28211320; --med-bg:#241D12; --low:#5FC496; --low-bg:#122A20;
+  --shadow:0 1px 2px rgba(0,0,0,.3), 0 10px 30px -16px rgba(0,0,0,.6);
+}}
+:root[data-theme="dark"]{
+  --brand:#3FB79A; --brand-deep:#2C8C76; --brand-tint:#132A23;
+  --gold:#C9A15C;
+  --bg:#0C1310; --surface:#131C18; --surface-2:#0F1713; --raise:#16211B;
+  --ink:#E9F1EC; --muted:#9BADA4; --faint:#6E7E76; --line:#243029;
+  --high:#E4736E; --high-bg:#2A1917; --med:#D6A44E; --med-bg:#241D12; --low:#5FC496; --low-bg:#122A20;
+  --shadow:0 1px 2px rgba(0,0,0,.3), 0 10px 30px -16px rgba(0,0,0,.6);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);
+  font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+a{color:var(--brand);text-underline-offset:2px}
+.wrap{max-width:1180px;margin:0 auto;padding:0 24px}
+
+/* topbar */
+.topbar{position:sticky;top:0;z-index:40;background:color-mix(in srgb,var(--surface) 88%, transparent);
+  backdrop-filter:saturate(1.4) blur(10px);border-bottom:1px solid var(--line)}
+.topbar .wrap{display:flex;align-items:center;gap:14px;height:60px}
+.brand{display:flex;align-items:center;gap:11px;font-weight:700;letter-spacing:.2px}
+.mark{width:30px;height:30px;border-radius:8px;background:linear-gradient(145deg,var(--brand),var(--brand-deep));
+  display:grid;place-items:center;color:#fff;font-weight:800;font-size:13px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.12)}
+.brand small{display:block;font-weight:500;color:var(--muted);letter-spacing:.3px;font-size:11.5px;margin-top:1px}
+.brand b{font-size:15px}
+.grow{flex:1}
+.tbtn{border:1px solid var(--line);background:var(--surface-2);color:var(--muted);border-radius:9px;
+  height:34px;padding:0 12px;font:inherit;font-size:13px;cursor:pointer;display:inline-flex;align-items:center;gap:7px}
+.tbtn:hover{color:var(--ink);border-color:var(--brand)}
+.topbar::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;
+  background:linear-gradient(90deg,var(--brand),var(--gold) 70%,transparent)}
+
+/* hero */
+.hero{padding:46px 0 30px}
+.eyebrow{font-size:12px;font-weight:600;letter-spacing:1.6px;text-transform:uppercase;color:var(--brand);margin:0 0 12px}
+.hero h1{font-size:clamp(28px,4vw,42px);line-height:1.08;margin:0 0 14px;letter-spacing:-.02em;text-wrap:balance;font-weight:750}
+.lede{max-width:74ch;color:var(--muted);font-size:16.5px;line-height:1.6;margin:0}
+.stats{display:flex;flex-wrap:wrap;gap:14px;margin-top:26px}
+.stat{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 16px;min-width:130px;box-shadow:var(--shadow)}
+.stat .n{font-size:26px;font-weight:750;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.stat .l{font-size:12px;color:var(--muted);margin-top:2px}
+.stat.accent .n{color:var(--brand)}
+
+/* controls */
+.controls{position:sticky;top:60px;z-index:30;background:color-mix(in srgb,var(--bg) 92%,transparent);
+  backdrop-filter:blur(6px);border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:14px 0}
+.controls .wrap{display:flex;flex-wrap:wrap;align-items:center;gap:12px}
+.search{position:relative;flex:1;min-width:220px}
+.search input{width:100%;height:40px;border:1px solid var(--line);background:var(--surface);color:var(--ink);
+  border-radius:10px;padding:0 14px 0 38px;font:inherit;font-size:14px}
+.search input:focus{outline:2px solid var(--brand);outline-offset:1px;border-color:transparent}
+.search svg{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--faint)}
+.chips{display:flex;flex-wrap:wrap;gap:7px}
+.chip{border:1px solid var(--line);background:var(--surface);color:var(--muted);border-radius:999px;
+  padding:7px 13px;font:inherit;font-size:12.5px;cursor:pointer;transition:.12s;white-space:nowrap}
+.chip:hover{color:var(--ink);border-color:var(--brand)}
+.chip[aria-pressed="true"]{background:var(--brand);border-color:var(--brand);color:#fff}
+.chip.sevchip[aria-pressed="true"]{color:#fff}
+.chip.sev-high[aria-pressed="true"]{background:var(--high);border-color:var(--high)}
+.chip.sev-medium[aria-pressed="true"]{background:var(--med);border-color:var(--med)}
+.chip.sev-low[aria-pressed="true"]{background:var(--low);border-color:var(--low)}
+.facet-label{font-size:11px;letter-spacing:.5px;text-transform:uppercase;color:var(--faint);margin-right:2px;align-self:center}
+.rescount{margin-left:auto;font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
+.rescount b{color:var(--ink)}
+.clearbtn{border:none;background:none;color:var(--brand);font:inherit;font-size:13px;cursor:pointer;text-decoration:underline}
+
+/* cards */
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:14px;padding:26px 0 8px}
+.card{display:flex;flex-direction:column;gap:10px;background:var(--surface);border:1px solid var(--line);
+  border-left:4px solid var(--line);border-radius:var(--radius);padding:15px 16px;text-decoration:none;color:inherit;
+  box-shadow:var(--shadow);transition:transform .12s, border-color .12s}
+.card:hover{transform:translateY(-2px);border-color:var(--brand);border-left-color:var(--brand)}
+.card.sev-high{border-left-color:var(--high)} .card.sev-medium{border-left-color:var(--med)} .card.sev-low{border-left-color:var(--low)}
+.card-top{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.code{font-family:var(--mono);font-size:12.5px;font-weight:600;color:var(--brand);letter-spacing:.3px}
+.fam{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.6px}
+.card-title{font-size:15.5px;line-height:1.32;margin:0;font-weight:650;letter-spacing:-.01em}
+.card-badges{display:flex;flex-wrap:wrap;gap:7px;margin-top:auto}
+.badge{font-size:11.5px;padding:4px 9px;border-radius:7px;font-weight:600;line-height:1.3}
+.badge.gap-yes,.badge.gap-partial{background:var(--brand-tint);color:var(--brand-deep)}
+:root[data-theme="dark"] .badge.gap-yes,:root[data-theme="dark"] .badge.gap-partial{color:var(--brand)}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]) .badge.gap-yes,:root:not([data-theme="light"]) .badge.gap-partial{color:var(--brand)}}
+.badge.gap-partial{outline:1px dashed color-mix(in srgb,var(--brand) 45%, transparent);outline-offset:-1px;background:transparent}
+.badge.gap-no{background:var(--surface-2);color:var(--faint)}
+.pill{font-size:11.5px;padding:4px 10px;border-radius:999px;font-weight:650}
+.pill.sev-high{background:var(--high-bg);color:var(--high)} .pill.sev-medium{background:var(--med-bg);color:var(--med)} .pill.sev-low{background:var(--low-bg);color:var(--low)}
+.empty{grid-column:1/-1;text-align:center;color:var(--muted);padding:50px 0}
+
+/* reference */
+.reference{padding:34px 0 10px;border-top:1px solid var(--line);margin-top:26px}
+.ref-head{display:flex;align-items:baseline;gap:12px;margin-bottom:6px}
+.ref-head h2{font-size:22px;margin:0;letter-spacing:-.01em}
+.ref-head span{color:var(--muted);font-size:13.5px}
+.doc{max-width:100%}
+.doc h2{font-size:20px;margin:34px 0 10px;padding-top:14px;border-top:1px solid var(--line);letter-spacing:-.01em}
+.doc h2:first-child{border-top:none;padding-top:0;margin-top:8px}
+.doc h3{font-size:16.5px;margin:22px 0 6px}
+.doc h4{font-size:15px;margin:18px 0 6px;color:var(--brand-deep)}
+:root[data-theme="dark"] .doc h4{color:var(--brand)}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]) .doc h4{color:var(--brand)}}
+.doc p{max-width:78ch;color:var(--ink)}
+.doc strong{font-weight:680}
+.doc code{font-family:var(--mono);font-size:12.5px;background:var(--surface-2);border:1px solid var(--line);
+  border-radius:5px;padding:1px 5px}
+.doc a{font-weight:500}
+.doc ul,.doc ol{max-width:78ch}
+.doc li{margin:4px 0}
+.doc hr{border:none;border-top:1px solid var(--line);margin:26px 0}
+.tablescroll,.doc :is(table){display:block;overflow-x:auto}
+.doc table{width:100%;border-collapse:collapse;margin:14px 0;font-size:13.5px;min-width:520px}
+.doc th,.doc td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+.doc th{background:var(--surface-2);font-weight:650;position:sticky;top:0;white-space:nowrap}
+.doc tr:hover td{background:var(--surface-2)}
+.anchor{position:relative;top:-84px;visibility:hidden}
+:target{scroll-margin-top:90px}
+.doc span[id^="rule-"]+*, .doc :is(h3,h4,strong):has(+ .anchor){}
+
+footer{border-top:1px solid var(--line);margin-top:40px;padding:26px 0 48px;color:var(--muted);font-size:13px}
+footer .wrap{display:flex;flex-wrap:wrap;gap:10px 22px;align-items:center}
+footer .note{max-width:70ch}
+.kbd{font-family:var(--mono);font-size:11px;background:var(--surface-2);border:1px solid var(--line);border-radius:5px;padding:1px 6px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important}}
+@media (max-width:640px){.hero{padding:34px 0 22px}.controls{top:60px}.doc table{min-width:440px}}
+</style>
+<header class="topbar"><div class="wrap"><div class="brand"><span class="mark">ZC</span><span><b>ZATCA VAT Audit Agent</b><small>Rule Library</small></span></div><span class="grow"></span><button class="tbtn" id="themeBtn" aria-label="Toggle theme"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg><span id="themeLbl">Theme</span></button></div></header>
+<main>
+<section class="hero"><div class="wrap"><p class="eyebrow">VAT Audit Agent · Detection rules</p><h1>VAT Mistakes Rulebook</h1><p class="lede">This rulebook is the canonical catalogue of taxpayer VAT mistakes the agent must catch when investigating a flagged case. Each rule reconstructs the expected KSA VAT return from cleared FATOORA e-invoices (aggregating TAXSUBTOTAL by tax category × rate × direction × period), plus external feeds where e-invoices cannot reach (customs/Bayan, AP/payment ledgers, counterparty master), compares that reconstruction to the declared boxes, and names the concrete explanation for every residual. Detection is deterministic; AI only reads/narrates free text; a human auditor approves every finding. These rules are the content behind config.rule_library, and each maps to a ROOT_CAUSE_CODE.</p><div class="stats"><div class="stat"><div class="n">65</div><div class="l">Detection rules</div></div><div class="stat"><div class="n">6</div><div class="l">Mistake families</div></div><div class="stat accent"><div class="n">44</div><div class="l">Explain an e-invoice &#8596; filing gap</div></div></div></div></section>
+<section class="controls"><div class="wrap"><div class="search"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg><input id="q" type="search" placeholder="Search rules — e.g. reverse charge, late filing, credit note, Box 9…" autocomplete="off"></div><div class="chips"><span class="facet-label">Family</span><button class="chip" data-facet="family" data-val="Output">Output</button><button class="chip" data-facet="family" data-val="Input">Input</button><button class="chip" data-facet="family" data-val="Reverse-charge">Reverse-charge</button><button class="chip" data-facet="family" data-val="Corrections">Corrections</button><button class="chip" data-facet="family" data-val="Compliance">Compliance</button><button class="chip" data-facet="family" data-val="Data">Data</button></div><div class="chips"><span class="facet-label">Severity</span><button class="chip sevchip sev-high" data-facet="sev" data-val="high">High</button><button class="chip sevchip sev-medium" data-facet="sev" data-val="medium">Medium</button><button class="chip sevchip sev-low" data-facet="sev" data-val="low">Low</button></div><div class="chips"><span class="facet-label">Gap</span><button class="chip" data-facet="gap" data-val="yes">Explains a gap</button><button class="chip" data-facet="gap" data-val="partial">Partial</button><button class="chip" data-facet="gap" data-val="no">No direct gap</button></div><span class="rescount"><b id="shown">65</b> / 65 rules <button class="clearbtn" id="clear" hidden>clear</button></span></div></section>
+<div class="wrap">
+<section class="cards" id="cards"><a class="card sev-high gap-yes" href="#rule-OUT-01" data-family="Output" data-sev="high" data-gap="yes" data-text="out-01 under-declared / omitted standard-rated sales output yes → standard_rate_sales high"><div class="card-top"><span class="code">OUT-01</span><span class="fam">Output</span></div><h3 class="card-title">Under-declared / omitted standard-rated sales</h3><div class="card-badges"><span class="badge gap-yes">Yes → Standard_Rate_Sales</span><span class="pill sev-high">High</span></div></a>
+<a class="card sev-high gap-yes" href="#rule-OUT-02" data-family="Output" data-sev="high" data-gap="yes" data-text="out-02 wrong rate 5% vs 15% (2020-07-01 transition) output yes → standard_rate_sales _5↔_15 high"><div class="card-top"><span class="code">OUT-02</span><span class="fam">Output</span></div><h3 class="card-title">Wrong rate 5% vs 15% (2020-07-01 transition)</h3><div class="card-badges"><span class="badge gap-yes">Yes → Standard_Rate_Sales _5↔_15</span><span class="pill sev-high">High</span></div></a>
+<a class="card sev-high gap-yes" href="#rule-OUT-03" data-family="Output" data-sev="high" data-gap="yes" data-text="out-03 standard sales mis-declared as zero-rated/exempt output yes → zero/exempt ↔ standard high"><div class="card-top"><span class="code">OUT-03</span><span class="fam">Output</span></div><h3 class="card-title">Standard sales mis-declared as zero-rated/exempt</h3><div class="card-badges"><span class="badge gap-yes">Yes → Zero/Exempt ↔ Standard</span><span class="pill sev-high">High</span></div></a>
+<a class="card sev-high gap-partial" href="#rule-OUT-04" data-family="Output" data-sev="high" data-gap="partial" data-text="out-04 exports zero-rated without flag / proof output partial (reclass yes; proof customs) high"><div class="card-top"><span class="code">OUT-04</span><span class="fam">Output</span></div><h3 class="card-title">Exports zero-rated without flag / proof</h3><div class="card-badges"><span class="badge gap-partial">Partial (reclass Yes; proof customs)</span><span class="pill sev-high">High</span></div></a>
+<a class="card sev-medium gap-yes" href="#rule-OUT-05" data-family="Output" data-sev="medium" data-gap="yes" data-text="out-05 gcc sales mislabelled output yes → gcc/exports ↔ standard medium"><div class="card-top"><span class="code">OUT-05</span><span class="fam">Output</span></div><h3 class="card-title">GCC sales mislabelled</h3><div class="card-badges"><span class="badge gap-yes">Yes → GCC/Exports ↔ Standard</span><span class="pill sev-medium">Medium</span></div></a>
+<a class="card sev-medium gap-yes" href="#rule-OUT-06" data-family="Output" data-sev="medium" data-gap="yes" data-text="out-06 government-supplied sales mishandled (15/5) output yes → government_supplied_sales medium"><div class="card-top"><span class="code">OUT-06</span><span class="fam">Output</span></div><h3 class="card-title">Government-supplied sales mishandled (15/5)</h3><div class="card-badges"><span class="badge gap-yes">Yes → Government_Supplied_Sales</span><span class="pill sev-medium">Medium</span></div></a>
+<a class="card sev-medium gap-yes" href="#rule-OUT-07" data-family="Output" data-sev="medium" data-gap="yes" data-text="out-07 tax-point / period-straddle timing output yes → standard_rate_sales (timing) medium"><div class="card-top"><span class="code">OUT-07</span><span class="fam">Output</span></div><h3 class="card-title">Tax-point / period-straddle timing</h3><div class="card-badges"><span class="badge gap-yes">Yes → Standard_Rate_Sales (timing)</span><span class="pill sev-medium">Medium</span></div></a>
+<a class="card sev-medium gap-no" href="#rule-OUT-08" data-family="Output" data-sev="medium" data-gap="no" data-text="out-08 output vat not charged on deemed/nominal supplies output no (compliance/valuation) medium"><div class="card-top"><span class="code">OUT-08</span><span class="fam">Output</span></div><h3 class="card-title">Output VAT not charged on deemed/nominal supplies</h3><div class="card-badges"><span class="badge gap-no">No direct gap · compliance/valuation</span><span class="pill sev-medium">Medium</span></div></a>
+<a class="card sev-high gap-yes" href="#rule-OUT-09" data-family="Output" data-sev="high" data-gap="yes" data-text="out-09 excessive / fictitious credit notes suppressing output output yes → standard_rate_sales (netting) high"><div class="card-top"><span class="code">OUT-09</span><span class="fam">Output</span></div><h3 class="card-title">Excessive / fictitious credit notes suppressing output</h3><div class="card-badges"><span class="badge gap-yes">Yes → Standard_Rate_Sales (netting)</span><span class="pill sev-high">High</span></div></a>
+<a class="card sev-medium gap-no" href="#rule-OUT-10" data-family="Output" data-sev="medium" data-gap="no" data-text="out-10 supplies to connected persons below fair market value output no (valuation) medium"><div class="card-top"><span class="code">OUT-10</span><span class="fam">Output</span></div><h3 class="card-title">Supplies to connected persons below fair market value</h3><div class="card-badges"><span class="badge gap-no">No direct gap · valuation</span><span class="pill sev-medium">Medium</span></div></a>
+<a class="card sev-high gap-yes" href="#rule-INP-01" data-family="Input" data-sev="high" data-gap="yes" data-text="inp-01 input vat claimed with no valid cleared tax invoice input yes → standard_rate_purchase_vat high"><div class="card-top"><span class="code">INP-01</span><span class="fam">Input</span></div><h3 class="card-title">Input VAT claimed with no valid cleared tax invoice</h3><div class="card-badges"><span class="badge gap-yes">Yes → Standard_Rate_Purchase_VAT</span><span class="pill sev-high">High</span></div></a>
+<a class="card sev-medium gap-yes" href="#rule-INP-02" data-family="Input" data-sev="medium" data-gap="yes" data-text="inp-02 input vat on blocked / non-deductible items input yes → standard_rate_purchase_vat medium (high fleet/entertainment)"><div class="card-top"><span class="code">INP-02</span><span class="fam">Input</span></div><h3 class="card-title">Input VAT on blocked / non-deductible items</h3><div class="card-badges"><span class="badge gap-yes">Yes → Standard_Rate_Purchase_VAT</span><span class="pill sev-medium">Medium (High fleet/entertainment)</span></div></a>
+<a class="card sev-high gap-yes" href="#rule-INP-03" data-family="Input" data-sev="high" data-gap="yes" data-text="inp-03 no partial-exemption apportionment input yes → standard_rate_purchase_vat high"><div class="card-top"><span class="code">INP-03</span><span class="fam">Input</span></div><h3 class="card-title">No partial-exemption apportionment</h3><div class="card-badges"><span class="badge gap-yes">Yes → Standard_Rate_Purchase_VAT</span><span class="pill sev-high">High</span></div></a>
+<a class="card sev-high gap-yes" href="#rule-INP-04" data-family="Input" data-sev="high" data-gap="yes" data-text="inp-04 duplicate input claim (cross-period re-claim) input yes → standard_rate_purchase_vat high"><div class="card-top"><span class="code">INP-04</span><span class="fam">Input</span></div><h3 class="card-title">Duplicate input claim (cross-period re-claim)</h3><div class="card-badges"><span class="badge gap-yes">Yes → Standard_Rate_Purchase_VAT</span><span class="pill sev-high">High</span></div></a>
+<a class="card sev-medium gap-yes" href="#rule-INP-05" data-family="Input" data-sev="medium" data-gap="yes" data-text="inp-05 input vat claimed at the wrong rate input yes → standard_rate_purchase_vat medium"><div class="card-top"><span class="code">INP-05</span><span class="fam">Input</span></div><h3 class="card-title">Input VAT claimed at the wrong rate</h3><div class="card-badges"><span class="badge gap-yes">Yes → Standard_Rate_Purchase_VAT</span><span class="pill sev-medium">Medium</span></div></a>
+<a class="card sev-medium gap-yes" href="#rule-INP-06" data-family="Input" data-sev="medium" data-gap="yes" data-text="inp-06 input vat on zero-rated / exempt purchases input yes → standard_rate_purchase_vat medium"><div class="card-top"><span class="code">INP-06</span><span class="fam">Input</span></div><h3 class="card-title">Input VAT on zero-rated / exempt purchases</h3><div class="card-badges"><span class="badge gap-yes">Yes → Standard_Rate_Purchase_VAT</span><span class="pill sev-medium">Medium</span></div></a>
+<a class="card sev-medium gap-yes" href="#rule-INP-07" data-family="Input" data-sev="medium" data-gap="yes" data-text="inp-07 claiming before the tax point / on prepayments input yes → standard_rate_purchase_vat (timing) medium"><div class="card-top"><span class="code">INP-07</span><span class="fam">Input</span></div><h3 class="card-title">Claiming before the tax point / on prepayments</h3><div class="card-badges"><span class="badge gap-yes">Yes → Standard_Rate_Purchase_VAT (timing)</span><span class="pill sev-medium">Medium</span></div></a>
+<a class="card sev-high gap-yes" href="#rule-INP-08" data-family="Input" data-sev="high" data-gap="yes" data-text="inp-08 input vat from non-registered/deregistered suppliers input yes → standard_rate_purchase_vat (lead compliance) high"><div class="card-top"><span class="code">INP-08</span><span class="fam">Input</span></div><h3 class="card-title">Input VAT from non-registered/deregistered suppliers</h3><div class="card-badges"><span class="badge gap-yes">Yes → Standard_Rate_Purchase_VAT (lead compliance)</span><span class="pill sev-high">High</span></div></a>
+<a class="card sev-low gap-yes" href="#rule-INP-09" data-family="Input" data-sev="low" data-gap="yes" data-text="inp-09 input claimed in the wrong / a late period input yes → standard_rate_purchase_vat (timing) low–medium"><div class="card-top"><span class="code">INP-09</span><span class="fam">Input</span></div><h3 class="card-title">Input claimed in the wrong / a late period</h3><div class="card-badges"><span class="badge gap-yes">Yes → Standard_Rate_Purchase_VAT (timing)</span><span class="pill sev-low">Low–Medium</span></div></a>
+<a class="card sev-medium gap-no" href="#rule-INP-10" data-family="Input" data-sev="medium" data-gap="no" data-text="inp-10 capital-assets scheme adjustment on change of use not made input no (compliance, multi-year) medium"><div class="card-top"><span class="code">INP-10</span><span class="fam">Input</span></div><h3 class="card-title">Capital-assets scheme adjustment on change of use not made</h3><div class="card-badges"><span class="badge gap-no">No direct gap · compliance, multi-year</span><span class="pill sev-medium">Medium</span></div></a>
+<a class="card sev-medium gap-no" href="#rule-INP-11" data-family="Input" data-sev="medium" data-gap="no" data-text="inp-11 input not repaid on supplier invoices unpaid &gt; 12 months input no (compliance, ap feed) medium"><div class="card-top"><span class="code">INP-11</span><span class="fam">Input</span></div><h3 class="card-title">Input not repaid on supplier invoices unpaid &gt; 12 months</h3><div class="card-badges"><span class="badge gap-no">No direct gap · compliance, AP feed</span><span class="pill sev-medium">Medium</span></div></a>
+<a class="card sev-high gap-no" href="#rule-RCM-01" data-family="Reverse-charge" data-sev="high" data-gap="no" data-text="rcm-01 imported services never reverse-charged (box 9 empty) reverse-charge no (ap feed) high"><div class="card-top"><span class="code">RCM-01</span><span class="fam">Reverse-charge</span></div><h3 class="card-title">Imported services never reverse-charged (Box 9 empty)</h3><div class="card-badges"><span class="badge gap-no">No direct gap · AP feed</span><span class="pill sev-high">High</span></div></a>
+<a class="card sev-high gap-no" href="#rule-RCM-02" data-family="Reverse-charge" data-sev="high" data-gap="no" data-text="rcm-02 goods-import vat (box 8) understated vs customs reverse-charge no (customs feed) high"><div class="card-top"><span class="code">RCM-02</span><span class="fam">Reverse-charge</span></div><h3 class="card-title">Goods-import VAT (Box 8) understated vs customs</h3><div class="card-badges"><span class="badge gap-no">No direct gap · customs feed</span><span class="pill sev-high">High</span></div></a>
+<a class="card sev-high gap-no" href="#rule-RCM-03" data-family="Reverse-charge" data-sev="high" data-gap="no" data-text="rcm-03 import vat claimed without actual customs payment reverse-charge no (customs feed) high"><div class="card-top"><span class="code">RCM-03</span><span class="fam">Reverse-charge</span></div><h3 class="card-title">Import VAT claimed without actual customs payment</h3><div class="card-badges"><span class="badge gap-no">No direct gap · customs feed</span><span class="pill sev-high">High</span></div></a>
+<a class="card sev-medium gap-no" href="#rule-RCM-04" data-family="Reverse-charge" data-sev="medium" data-gap="no" data-text="rcm-04 box 9 symmetry broken (output/input legs don&#x27;t tie) reverse-charge no (box 8/9 mechanics) medium"><div class="card-top"><span class="code">RCM-04</span><span class="fam">Reverse-charge</span></div><h3 class="card-title">Box 9 symmetry broken (output/input legs don&#x27;t tie)</h3><div class="card-badges"><span class="badge gap-no">No direct gap · Box 8/9 mechanics</span><span class="pill sev-medium">Medium</span></div></a>
+<a class="card sev-high gap-no" href="#rule-RCM-05" data-family="Reverse-charge" data-sev="high" data-gap="no" data-text="rcm-05 rcm/import input claimed without right to deduct reverse-charge no (compliance) high"><div class="card-top"><span class="code">RCM-05</span><span class="fam">Reverse-charge</span></div><h3 class="card-title">RCM/import input claimed without right to deduct</h3><div class="card-badges"><span class="badge gap-no">No direct gap · compliance</span><span class="pill sev-high">High</span></div></a>
+<a class="card sev-medium gap-no" href="#rule-RCM-06" data-family="Reverse-charge" data-sev="medium" data-gap="no" data-text="rcm-06 wrong rate on the self-assessed amount reverse-charge no (box 9 rate check) medium"><div class="card-top"><span class="code">RCM-06</span><span class="fam">Reverse-charge</span></div><h3 class="card-title">Wrong rate on the self-assessed amount</h3><div class="card-badges"><span class="badge gap-no">No direct gap · Box 9 rate check</span><span class="pill sev-medium">Medium</span></div></a>
+<a class="card sev-medium gap-partial" href="#rule-RCM-07" data-family="Reverse-charge" data-sev="medium" data-gap="partial" data-text="rcm-07 rcm supply booked as ordinary domestic purchase (box 7) reverse-charge partial → box 9 output leg missing medium"><div class="card-top"><span class="code">RCM-07</span><span class="fam">Reverse-charge</span></div><h3 class="card-title">RCM supply booked as ordinary domestic purchase (Box 7)</h3><div class="card-badges"><span class="badge gap-partial">Partial → Box 9 output leg missing</span><span class="pill sev-medium">Medium</span></div></a>
+<a class="card sev-medium gap-no" href="#rule-RCM-08" data-family="Reverse-charge" data-sev="medium" data-gap="no" data-text="rcm-08 intra-gcc supply mistreated / double-counted reverse-charge no (customs/ap feed) medium"><div class="card-top"><span class="code">RCM-08</span><span class="fam">Reverse-charge</span></div><h3 class="card-title">Intra-GCC supply mistreated / double-counted</h3><div class="card-badges"><span class="badge gap-no">No direct gap · customs/AP feed</span><span class="pill sev-medium">Medium</span></div></a>
+<a class="card sev-low gap-no" href="#rule-RCM-09" data-family="Reverse-charge" data-sev="low" data-gap="no" data-text="rcm-09 wrong-period / accounting-method mismatch on import &amp; rcm reverse-charge no (timing vs customs/ap) low–medium"><div class="card-top"><span class="code">RCM-09</span><span class="fam">Reverse-charge</span></div><h3 class="card-title">Wrong-period / accounting-method mismatch on import &amp; RCM</h3><div class="card-badges"><span class="badge gap-no">No direct gap · timing vs customs/AP</span><span class="pill sev-low">Low–Medium</span></div></a>
+<a class="card sev-medium gap-partial" href="#rule-RCM-10" data-family="Reverse-charge" data-sev="medium" data-gap="partial" data-text="rcm-10 rcm wrongly applied to a resident/registered supplier reverse-charge partial → belongs in box 7 medium"><div class="card-top"><span class="code">RCM-10</span><span class="fam">Reverse-charge</span></div><h3 class="card-title">RCM wrongly applied to a resident/registered supplier</h3><div class="card-badges"><span class="badge gap-partial">Partial → belongs in Box 7</span><span class="pill sev-medium">Medium</span></div></a>
+<a class="card sev-medium gap-yes" href="#rule-COR-01" data-family="Corrections" data-sev="medium" data-gap="yes" data-text="cor-01 sales credit notes (381) issued but output not reduced corrections yes → standard_rate_sales_vat medium (high if reversed)"><div class="card-top"><span class="code">COR-01</span><span class="fam">Corrections</span></div><h3 class="card-title">Sales credit notes (381) issued but output not reduced</h3><div class="card-badges"><span class="badge gap-yes">Yes → Standard_Rate_Sales_VAT</span><span class="pill sev-medium">Medium (High if reversed)</span></div></a>
+<a class="card sev-high gap-yes" href="#rule-COR-02" data-family="Corrections" data-sev="high" data-gap="yes" data-text="cor-02 supplier credit notes (381) not reversing input vat corrections yes → standard_rate_purchase_vat high"><div class="card-top"><span class="code">COR-02</span><span class="fam">Corrections</span></div><h3 class="card-title">Supplier credit notes (381) not reversing input VAT</h3><div class="card-badges"><span class="badge gap-yes">Yes → Standard_Rate_Purchase_VAT</span><span class="pill sev-high">High</span></div></a>
+<a class="card sev-medium gap-yes" href="#rule-COR-03" data-family="Corrections" data-sev="medium" data-gap="yes" data-text="cor-03 debit notes (383) issued but extra output not added corrections yes → standard_rate_sales_vat medium–high"><div class="card-top"><span class="code">COR-03</span><span class="fam">Corrections</span></div><h3 class="card-title">Debit notes (383) issued but extra output not added</h3><div class="card-badges"><span class="badge gap-yes">Yes → Standard_Rate_Sales_VAT</span><span class="pill sev-medium">Medium–High</span></div></a>
+<a class="card sev-high gap-yes" href="#rule-COR-04" data-family="Corrections" data-sev="high" data-gap="yes" data-text="cor-04 bad-debt relief claimed without meeting conditions corrections yes → standard_rate_sales_adjustment (if valid) high"><div class="card-top"><span class="code">COR-04</span><span class="fam">Corrections</span></div><h3 class="card-title">Bad-debt relief claimed without meeting conditions</h3><div class="card-badges"><span class="badge gap-yes">Yes → Standard_Rate_Sales_Adjustment (if valid)</span><span class="pill sev-high">High</span></div></a>
+<a class="card sev-high gap-yes" href="#rule-COR-05" data-family="Corrections" data-sev="high" data-gap="yes" data-text="cor-05 reconciling against the wrong return version corrections yes → box16 (baseline selection) high"><div class="card-top"><span class="code">COR-05</span><span class="fam">Corrections</span></div><h3 class="card-title">Reconciling against the wrong return version</h3><div class="card-badges"><span class="badge gap-yes">Yes → Box16 (baseline selection)</span><span class="pill sev-high">High</span></div></a>
+<a class="card sev-medium gap-yes" href="#rule-COR-06" data-family="Corrections" data-sev="medium" data-gap="yes" data-text="cor-06 box-14 self-correction used above the per-error cap corrections yes → box14 carve-out (finding = compliance) medium (high if concealing)"><div class="card-top"><span class="code">COR-06</span><span class="fam">Corrections</span></div><h3 class="card-title">Box-14 self-correction used above the per-error cap</h3><div class="card-badges"><span class="badge gap-yes">Yes → Box14 carve-out (finding = compliance)</span><span class="pill sev-medium">Medium (High if concealing)</span></div></a>
+<a class="card sev-high gap-yes" href="#rule-COR-07" data-family="Corrections" data-sev="high" data-gap="yes" data-text="cor-07 correction double-counted (381 and box-14) corrections yes → box16 (over-relief) high"><div class="card-top"><span class="code">COR-07</span><span class="fam">Corrections</span></div><h3 class="card-title">Correction double-counted (381 AND Box-14)</h3><div class="card-badges"><span class="badge gap-yes">Yes → Box16 (over-relief)</span><span class="pill sev-high">High</span></div></a>
+<a class="card sev-medium gap-no" href="#rule-COR-08" data-family="Corrections" data-sev="medium" data-gap="no" data-text="cor-08 orphan `_adjustment` not tied to any event corrections no when orphan / yes when tied medium–high"><div class="card-top"><span class="code">COR-08</span><span class="fam">Corrections</span></div><h3 class="card-title">Orphan `_Adjustment` not tied to any event</h3><div class="card-badges"><span class="badge gap-no">No direct gap · when orphan / Yes when tied</span><span class="pill sev-medium">Medium–High</span></div></a>
+<a class="card sev-high gap-no" href="#rule-COR-09" data-family="Corrections" data-sev="high" data-gap="no" data-text="cor-09 vat credit (box15) carried forward incorrectly corrections no (compliance) high"><div class="card-top"><span class="code">COR-09</span><span class="fam">Corrections</span></div><h3 class="card-title">VAT credit (Box15) carried forward incorrectly</h3><div class="card-badges"><span class="badge gap-no">No direct gap · compliance</span><span class="pill sev-high">High</span></div></a>
+<a class="card sev-high gap-yes" href="#rule-COR-10" data-family="Corrections" data-sev="high" data-gap="yes" data-text="cor-10 amended return reverses a genuine liability corrections yes → box13/box16 high"><div class="card-top"><span class="code">COR-10</span><span class="fam">Corrections</span></div><h3 class="card-title">Amended return reverses a genuine liability</h3><div class="card-badges"><span class="badge gap-yes">Yes → Box13/Box16</span><span class="pill sev-high">High</span></div></a>
+<a class="card sev-medium gap-no" href="#rule-CMP-01" data-family="Compliance" data-sev="medium" data-gap="no" data-text="cmp-01 late filing of the vat return compliance no (compliance/timing) medium (high if chronic)"><div class="card-top"><span class="code">CMP-01</span><span class="fam">Compliance</span></div><h3 class="card-title">Late filing of the VAT return</h3><div class="card-badges"><span class="badge gap-no">No direct gap · compliance/timing</span><span class="pill sev-medium">Medium (High if chronic)</span></div></a>
+<a class="card sev-medium gap-no" href="#rule-CMP-02" data-family="Compliance" data-sev="medium" data-gap="no" data-text="cmp-02 late or unpaid vat payment (sadad) compliance no (compliance/payment) medium (high if large)"><div class="card-top"><span class="code">CMP-02</span><span class="fam">Compliance</span></div><h3 class="card-title">Late or unpaid VAT payment (SADAD)</h3><div class="card-badges"><span class="badge gap-no">No direct gap · compliance/payment</span><span class="pill sev-medium">Medium (High if large)</span></div></a>
+<a class="card sev-high gap-yes" href="#rule-CMP-03" data-family="Compliance" data-sev="high" data-gap="yes" data-text="cmp-03 nil / under-stated return while e-invoices show activity compliance yes → standard_rate_sales high"><div class="card-top"><span class="code">CMP-03</span><span class="fam">Compliance</span></div><h3 class="card-title">Nil / under-stated return while e-invoices show activity</h3><div class="card-badges"><span class="badge gap-yes">Yes → Standard_Rate_Sales</span><span class="pill sev-high">High</span></div></a>
+<a class="card sev-high gap-no" href="#rule-CMP-04" data-family="Compliance" data-sev="high" data-gap="no" data-text="cmp-04 failure to register / late registration above threshold compliance no (registration) high"><div class="card-top"><span class="code">CMP-04</span><span class="fam">Compliance</span></div><h3 class="card-title">Failure to register / late registration above threshold</h3><div class="card-badges"><span class="badge gap-no">No direct gap · registration</span><span class="pill sev-high">High</span></div></a>
+<a class="card sev-high gap-yes" href="#rule-CMP-05" data-family="Compliance" data-sev="high" data-gap="yes" data-text="cmp-05 charging vat after deregistration / failure to deregister compliance yes → standard_rate_sales (+ registration) high"><div class="card-top"><span class="code">CMP-05</span><span class="fam">Compliance</span></div><h3 class="card-title">Charging VAT after deregistration / failure to deregister</h3><div class="card-badges"><span class="badge gap-yes">Yes → Standard_Rate_Sales (+ registration)</span><span class="pill sev-high">High</span></div></a>
+<a class="card sev-medium gap-yes" href="#rule-CMP-06" data-family="Compliance" data-sev="medium" data-gap="yes" data-text="cmp-06 vat-group changes not reflected in filings compliance yes → standard_rate_sales medium (high if intra-group vat)"><div class="card-top"><span class="code">CMP-06</span><span class="fam">Compliance</span></div><h3 class="card-title">VAT-group changes not reflected in filings</h3><div class="card-badges"><span class="badge gap-yes">Yes → Standard_Rate_Sales</span><span class="pill sev-medium">Medium (High if intra-group VAT)</span></div></a>
+<a class="card sev-high gap-yes" href="#rule-CMP-07" data-family="Compliance" data-sev="high" data-gap="yes" data-text="cmp-07 ignoring the 2020 rate change (portfolio trigger) compliance yes → standard_rate_sales / _purchase _5↔_15 high"><div class="card-top"><span class="code">CMP-07</span><span class="fam">Compliance</span></div><h3 class="card-title">Ignoring the 2020 rate change (portfolio trigger)</h3><div class="card-badges"><span class="badge gap-yes">Yes → Standard_Rate_Sales / _Purchase _5↔_15</span><span class="pill sev-high">High</span></div></a>
+<a class="card sev-medium gap-no" href="#rule-CMP-08" data-family="Compliance" data-sev="medium" data-gap="no" data-text="cmp-08 wrong filing frequency for the turnover band compliance no (structural) medium"><div class="card-top"><span class="code">CMP-08</span><span class="fam">Compliance</span></div><h3 class="card-title">Wrong filing frequency for the turnover band</h3><div class="card-badges"><span class="badge gap-no">No direct gap · structural</span><span class="pill sev-medium">Medium</span></div></a>
+<a class="card sev-medium gap-yes" href="#rule-CMP-09" data-family="Compliance" data-sev="medium" data-gap="yes" data-text="cmp-09 business/sector/activity change not reflected compliance yes → zero/exempt/exports vs standard medium"><div class="card-top"><span class="code">CMP-09</span><span class="fam">Compliance</span></div><h3 class="card-title">Business/sector/activity change not reflected</h3><div class="card-badges"><span class="badge gap-yes">Yes → Zero/Exempt/Exports vs Standard</span><span class="pill sev-medium">Medium</span></div></a>
+<a class="card sev-high gap-no" href="#rule-CMP-10" data-family="Compliance" data-sev="high" data-gap="no" data-text="cmp-10 missing period / broken filing continuity compliance no (compliance) high"><div class="card-top"><span class="code">CMP-10</span><span class="fam">Compliance</span></div><h3 class="card-title">Missing period / broken filing continuity</h3><div class="card-badges"><span class="badge gap-no">No direct gap · compliance</span><span class="pill sev-high">High</span></div></a>
+<a class="card sev-high gap-yes" href="#rule-CMP-11" data-family="Compliance" data-sev="high" data-gap="yes" data-text="cmp-11 real-estate supply still charged 15% after rett (2020-10-04) compliance yes → standard_rate_sales ↔ exempt_sales high"><div class="card-top"><span class="code">CMP-11</span><span class="fam">Compliance</span></div><h3 class="card-title">Real-estate supply still charged 15% after RETT (2020-10-04)</h3><div class="card-badges"><span class="badge gap-yes">Yes → Standard_Rate_Sales ↔ Exempt_Sales</span><span class="pill sev-high">High</span></div></a>
+<a class="card sev-medium gap-no" href="#rule-CMP-12" data-family="Compliance" data-sev="medium" data-gap="no" data-text="cmp-12 e-invoicing phase-2 integration-wave non-compliance compliance no (compliance) medium"><div class="card-top"><span class="code">CMP-12</span><span class="fam">Compliance</span></div><h3 class="card-title">E-invoicing Phase-2 integration-wave non-compliance</h3><div class="card-badges"><span class="badge gap-no">No direct gap · compliance</span><span class="pill sev-medium">Medium</span></div></a>
+<a class="card sev-high gap-yes" href="#rule-DAT-01" data-family="Data" data-sev="high" data-gap="yes" data-text="dat-01 cleared invoices missing from the filing (under-declared) data yes → mapped sales box high"><div class="card-top"><span class="code">DAT-01</span><span class="fam">Data</span></div><h3 class="card-title">Cleared invoices missing from the filing (under-declared)</h3><div class="card-badges"><span class="badge gap-yes">Yes → mapped sales box</span><span class="pill sev-high">High</span></div></a>
+<a class="card sev-medium gap-yes" href="#rule-DAT-02" data-family="Data" data-sev="medium" data-gap="yes" data-text="dat-02 filing exceeds the e-invoice store (over-declared / under-reporting) data yes → over-declared sales box medium"><div class="card-top"><span class="code">DAT-02</span><span class="fam">Data</span></div><h3 class="card-title">Filing exceeds the e-invoice store (over-declared / under-reporting)</h3><div class="card-badges"><span class="badge gap-yes">Yes → over-declared sales box</span><span class="pill sev-medium">Medium</span></div></a>
+<a class="card sev-medium gap-yes" href="#rule-DAT-03" data-family="Data" data-sev="medium" data-gap="yes" data-text="dat-03 invoices reported late (supply in period, clearance next) data yes → affected box (timing) medium"><div class="card-top"><span class="code">DAT-03</span><span class="fam">Data</span></div><h3 class="card-title">Invoices reported late (supply in period, clearance next)</h3><div class="card-badges"><span class="badge gap-yes">Yes → affected box (timing)</span><span class="pill sev-medium">Medium</span></div></a>
+<a class="card sev-high gap-yes" href="#rule-DAT-04" data-family="Data" data-sev="high" data-gap="yes" data-text="dat-04 non-cleared / rejected invoices wrongly in/excluded data yes → affected box high"><div class="card-top"><span class="code">DAT-04</span><span class="fam">Data</span></div><h3 class="card-title">Non-cleared / rejected invoices wrongly in/excluded</h3><div class="card-badges"><span class="badge gap-yes">Yes → affected box</span><span class="pill sev-high">High</span></div></a>
+<a class="card sev-medium gap-yes" href="#rule-DAT-05" data-family="Data" data-sev="medium" data-gap="yes" data-text="dat-05 duplicate invoices (same uuid / broken hash chain) data yes → inflated box medium (high on purchase)"><div class="card-top"><span class="code">DAT-05</span><span class="fam">Data</span></div><h3 class="card-title">Duplicate invoices (same UUID / broken hash chain)</h3><div class="card-badges"><span class="badge gap-yes">Yes → inflated box</span><span class="pill sev-medium">Medium (High on purchase)</span></div></a>
+<a class="card sev-high gap-yes" href="#rule-DAT-06" data-family="Data" data-sev="high" data-gap="yes" data-text="dat-06 wrong buyer/seller vrn → wrong party or direction data yes → shifts sales ↔ purchase high"><div class="card-top"><span class="code">DAT-06</span><span class="fam">Data</span></div><h3 class="card-title">Wrong buyer/seller VRN → wrong party or direction</h3><div class="card-badges"><span class="badge gap-yes">Yes → shifts sales ↔ purchase</span><span class="pill sev-high">High</span></div></a>
+<a class="card sev-medium gap-yes" href="#rule-DAT-07" data-family="Data" data-sev="medium" data-gap="yes" data-text="dat-07 simplified (b2c) vs standard (b2b) invoices mishandled data yes → standard_rate_sales medium"><div class="card-top"><span class="code">DAT-07</span><span class="fam">Data</span></div><h3 class="card-title">Simplified (B2C) vs standard (B2B) invoices mishandled</h3><div class="card-badges"><span class="badge gap-yes">Yes → Standard_Rate_Sales</span><span class="pill sev-medium">Medium</span></div></a>
+<a class="card sev-medium gap-yes" href="#rule-DAT-08" data-family="Data" data-sev="medium" data-gap="yes" data-text="dat-08 foreign-currency invoices converted wrongly data yes → affected domestic box (not imports) medium"><div class="card-top"><span class="code">DAT-08</span><span class="fam">Data</span></div><h3 class="card-title">Foreign-currency invoices converted wrongly</h3><div class="card-badges"><span class="badge gap-yes">Yes → affected domestic box (not imports)</span><span class="pill sev-medium">Medium</span></div></a>
+<a class="card sev-low gap-yes" href="#rule-DAT-09" data-family="Data" data-sev="low" data-gap="yes" data-text="dat-09 rounding differences mis-accumulated data yes → affected vat box (closes small residual) low"><div class="card-top"><span class="code">DAT-09</span><span class="fam">Data</span></div><h3 class="card-title">Rounding differences mis-accumulated</h3><div class="card-badges"><span class="badge gap-yes">Yes → affected VAT box (closes small residual)</span><span class="pill sev-low">Low</span></div></a>
+<a class="card sev-low gap-yes" href="#rule-DAT-10" data-family="Data" data-sev="low" data-gap="yes" data-text="dat-10 allowances/discounts not netted from the base data yes → standard_rate_sales base low"><div class="card-top"><span class="code">DAT-10</span><span class="fam">Data</span></div><h3 class="card-title">Allowances/discounts not netted from the base</h3><div class="card-badges"><span class="badge gap-yes">Yes → Standard_Rate_Sales base</span><span class="pill sev-low">Low</span></div></a>
+<a class="card sev-medium gap-yes" href="#rule-DAT-11" data-family="Data" data-sev="medium" data-gap="yes" data-text="dat-11 prepayments (386) double-counted or mistimed data yes → standard_rate_sales medium"><div class="card-top"><span class="code">DAT-11</span><span class="fam">Data</span></div><h3 class="card-title">Prepayments (386) double-counted or mistimed</h3><div class="card-badges"><span class="badge gap-yes">Yes → Standard_Rate_Sales</span><span class="pill sev-medium">Medium</span></div></a>
+<a class="card sev-medium gap-no" href="#rule-DAT-12" data-family="Data" data-sev="medium" data-gap="no" data-text="dat-12 manual portal data-entry / internal-consistency errors data no (arithmetic pre-gate) medium (high on totals)"><div class="card-top"><span class="code">DAT-12</span><span class="fam">Data</span></div><h3 class="card-title">Manual portal data-entry / internal-consistency errors</h3><div class="card-badges"><span class="badge gap-no">No direct gap · arithmetic pre-gate</span><span class="pill sev-medium">Medium (High on totals)</span></div></a><div class="empty" id="empty" hidden>No rules match — <button class="clearbtn" id="clear2">clear filters</button></div></section>
+<section class="reference"><div class="ref-head"><h2>Full reference</h2><span>every rule in detail — detection logic, evidence, and the gap it explains</span></div><div class="doc"><h2>Legend</h2>
+<p><strong>Severity</strong> — risk × typical SAR materiality:
+- <strong>High</strong> — direct revenue loss or strong evasion signal.
+- <strong>Medium</strong> — material but often timing, valuation, or structural.
+- <strong>Low</strong> — small/systematic (rounding, base-only) or self-penalising.</p>
+<p><strong>explains_gap</strong> — does the rule explain an e-invoice-vs-filing difference?
+- <strong>Yes → Box X (direction)</strong> — the mistake moves value into/out of a named box and closes part of the reconstructed-vs-declared residual.
+- <strong>No (compliance/registration/valuation/customs)</strong> — the residual is real but is <em>not</em> derivable from FATOORA; it must be evidenced from an external feed or is a pure compliance defect.
+- <strong>Partial</strong> — the box reclass is e-invoice-provable but a second element (proof of export, RCM output leg) needs an external feed.</p>
+<p><strong>Shared materiality gate <code>τ</code> (single source of truth in <code>config.rule_library</code>).</strong> A residual is flagged only when <code>|residual| &gt; max(SAR 1,000, 0.5% of the compared box)</code>, in SAR (<code>TaxCurrencyCode</code>). All families consume this one function — no per-family drift. Where a rule historically used a wider band (e.g. input-pool 1%), it now reads <code>τ</code> with a rule-level override recorded in config, not a hard-coded constant.</p>
+<p><strong>Global data preconditions (apply wherever cited):</strong>
+- <strong>CP-MASTER</strong> — rules that classify a <em>counterparty</em> (customer/supplier residence, sector, government type, registration validity) require a <strong>counterparty BP-master dimension</strong> or the invoice buyer/seller-party fields. The audited taxpayer's own <code>NATIONALITY</code>/<code>BP_RESIDENT_FLAG</code>/<code>ZZBPTYPE</code>/<code>IND_SECTOR</code> describe <strong>the taxpayer, not the counterparty</strong> — never read them as the counterparty's attribute.
+- <strong>BUYER-SOCKET</strong> — supplier-invoice-backed <strong>input</strong> reconstruction depends on <strong>buyer-keyed FATOORA retrieval</strong> (<code>PURCHASE_BUYER_UNIDENTIFIED</code>). ZATCA invoices are seller-submitted; until this socket is confirmed live, input-pool rules run <code>partial=true</code> and fall back to AP-ledger/registry checks. INP and COR-02 share this single dependency (see INP preamble).
+- <strong>RATE-TRANSITION</strong> — one shared detector owns the 2020-07-01 5%→15% arithmetic; family rules call it rather than re-deriving it (see CMP-07).
+- <strong>VERSION-SELECT</strong> — reconcile against the return version <strong>as filed at referral</strong> (<code>Box16 ≈ OLD_TAX_AMT</code> at <code>AUD_DATE_G</code>), not merely <code>Current_Flag='Y'</code> (see COR-05).</p>
+<hr />
+<h2>Family OUT — Output VAT (sales-side)</h2>
+<p><em>Where the declared output position diverges from the output VAT reconstructed by aggregating sales-direction <code>INVOICELINE</code>/<code>TAXSUBTOTAL</code> (category S/Z/E/O × rate 15/5/0) within <code>From_Date..To_Date</code>.</em> DAT-01/02 own the raw completeness reconciliation; OUT-01…09 are the classification/rate/timing explainers layered on that residual.</p>
+<p><strong><span id="rule-OUT-01" class="anchor"></span>OUT-01 — Under-declared / omitted standard-rated sales</strong>
+- <strong>taxpayer_mistake:</strong> Reports less standard-rated output than the issued tax invoices show — a slice of 15% sales never reaches <code>Standard_Rate_Sales</code>.
+- <strong>why_it_happens:</strong> Manual re-keying from a sub-ledger that misses branches/POS tills; cash sales left out; deliberate suppression.
+- <strong>detection:</strong> Reconstruct expected = Σ <code>TAXSUBTOTAL.TaxableAmount</code>/<code>.TaxAmount</code> for <code>INVOICELINE.ItemClassifiedTaxCategoryID='S'</code> AND <code>Percent=15</code>, over <code>INVOICES</code> <code>InvoiceTypeCode IN (388,383)</code> minus <code>381</code>, tax point in period. Compare Σ TaxableAmount vs <code>Standard_Rate_Sales_Amount_15 (+_Adjustment)</code> and Σ TaxAmount vs <code>Standard_Rate_Sales_VAT_Amount_15</code>. Flag if <code>reconstructed − declared &gt; τ</code>. Internal ratio check <code>VAT_Amount_15 ≈ Amount_15 × 0.15</code>.
+- <strong>data_used:</strong> INVOICES, INVOICELINE, TAXSUBTOTAL; <code>Standard_Rate_Sales_Amount_15</code>/<code>_VAT_Amount_15</code>/<code>_Adjustment</code>; From_Date/To_Date.
+- <strong>explains_gap:</strong> Yes → Standard_Rate_Sales (output).
+- <strong>severity:</strong> High.
+- <strong>confirming_evidence:</strong> Enumerate the cleared (<code>STATUSCODE</code>) invoices inside the residual absent from the declared base; if still unexplained, request the GL sales-account reconciliation before a query letter.
+- <strong>ai_assist:</strong> Read <code>Reason_For_Amendment</code>/<code>NOTE_OID_ID</code>/<code>LETTER_*</code> for a narrated shortfall (e.g. "excludes intercompany"); summarise the residual invoice list.</p>
+<p><strong><span id="rule-OUT-02" class="anchor"></span>OUT-02 — Wrong VAT rate applied (5% vs 15%, 2020-07-01 transition)</strong> <em>(calls RATE-TRANSITION)</em>
+- <strong>taxpayer_mistake:</strong> Charges/declares 5% on supplies with tax point ≥ 2020-07-01 (should be 15%), or 15% on genuine pre-transition supplies.
+- <strong>why_it_happens:</strong> ERP tax-code not switched on the rate-change date; long-running contracts; transitional-rule confusion.
+- <strong>detection:</strong> For each S-line, tax point = earlier of <code>IssueDate</code>/<code>ActualDeliveryDate</code>. Flag <code>Percent=5</code> where tax point ≥ 2020-07-01 (outside the transitional window) and <code>=15</code> where tax point &lt; 2020-07-01. Uplift = Σ affected <code>TaxableAmount × (0.15−0.05)</code>. Corroborate: material <code>Standard_Rate_Sales_Amount_5</code> for a period wholly post-switch.
+- <strong>data_used:</strong> INVOICELINE (Percent), INVOICES (IssueDate, ActualDeliveryDate); <code>Standard_Rate_Sales_*_5</code> vs <code>*_15</code>.
+- <strong>explains_gap:</strong> Yes → shift Standard_Rate_Sales <code>_5</code>↔<code>_15</code> (output).
+- <strong>severity:</strong> High.
+- <strong>confirming_evidence:</strong> Contract/PO and delivery dates fixing the tax point; if 5% lines relate to a pre-2020 continuous-supply contract, apply transitional relief and reclassify as explained.
+- <strong>ai_assist:</strong> Read contract-date references in filing notes/<code>LETTER_*</code> to validate transitional-relief claims.</p>
+<p><strong><span id="rule-OUT-03" class="anchor"></span>OUT-03 — Standard-rated sales mis-declared as zero-rated or exempt</strong>
+- <strong>taxpayer_mistake:</strong> Puts 15% sales into <code>Zero_Rated_Sales</code> or <code>Exempt_Sales</code>, avoiding output VAT (and, for exempt, distorting input apportionment).
+- <strong>why_it_happens:</strong> Misreading zero-rating/exemption scope; a Z/E box used as a dumping ground.
+- <strong>detection:</strong> Compare declared <code>Zero_Rated_Sales_Amount</code> vs reconstructed category-<code>Z</code> Σ TaxableAmount, and <code>Exempt_Sales_Amount</code> vs category <code>E</code>. Flag where declared Z or E <strong>exceeds</strong> invoice-reconstructed Z/E by &gt; τ AND a matching understatement appears in <code>Standard_Rate_Sales_Amount_15</code> (paired offset). Confirm the suspect lines carry no <code>TaxAmount</code> despite not truly being Z/E.
+- <strong>data_used:</strong> INVOICELINE (category), TAXSUBTOTAL; Zero_Rated_Sales_Amount, Exempt_Sales_Amount, Standard_Rate_Sales_Amount_15.
+- <strong>explains_gap:</strong> Yes → offset Zero/Exempt ↔ Standard (output).
+- <strong>severity:</strong> High.
+- <strong>confirming_evidence:</strong> Sample invoices in the excess Z/E block for their true <code>ItemClassifiedTaxCategoryID=S</code>; taxpayer <code>IND_SECTOR</code> peer norm (a retailer at 90% zero-rated is anomalous). Next-best: request the zero-rating basis per stream.
+- <strong>ai_assist:</strong> Classify item descriptions on suspect lines to assess whether a genuine zero-rate/exemption basis exists; read filing notes for a stated basis.</p>
+<p><strong><span id="rule-OUT-04" class="anchor"></span>OUT-04 — Exports zero-rated without the export flag or proof of export</strong> <em>(CP-MASTER for customer residence/currency)</em>
+- <strong>taxpayer_mistake:</strong> Books sales into <code>Exports_Amount</code> at 0% but the invoices are not export-flagged and/or there is no evidence of goods leaving KSA.
+- <strong>why_it_happens:</strong> Treating any foreign customer as an export; missing customs/transport docs; local supply dressed as export.
+- <strong>detection:</strong> Reconcile declared <code>Exports_Amount</code> to Σ invoices whose <code>InvoiceTypeCode</code> <strong>name</strong> carries the export marker AND category <code>Z</code>. Flag the portion with <strong>no</strong> export-flagged invoice, or where <code>DocumentCurrencyCode='SAR'</code> with a resident customer (counterparty master). Residual export lacking flag = treated as standard-rated; expected VAT = residual × 15%.
+- <strong>data_used:</strong> INVOICES (InvoiceTypeCode name, DocumentCurrencyCode), INVOICELINE category Z; <strong>counterparty</strong> residence/nationality; Exports_Amount.
+- <strong>explains_gap:</strong> <strong>Partial</strong> — box reclass Exports↔Standard = Yes (output); proof-of-export = No (customs-only).
+- <strong>severity:</strong> High.
+- <strong>confirming_evidence:</strong> Customs export declaration / bill of lading against the invoice; prefer internal shipping records first; absent proof, reclassify to standard-rated and quantify.
+- <strong>ai_assist:</strong> Read attached-document references/<code>LETTER_*</code> for export proof already provided; flag customer-country vs currency mismatch.</p>
+<p><strong><span id="rule-OUT-05" class="anchor"></span>OUT-05 — GCC (intra-GCC) sales mislabelled</strong> <em>(CP-MASTER for customer nationality/registration)</em>
+- <strong>taxpayer_mistake:</strong> Reports GCC-customer supplies in the wrong box — as exports/zero-rated or in <code>Sales_To_Customers_GCC</code> — when the live transitional treatment makes them standard-rated KSA supplies.
+- <strong>why_it_happens:</strong> Assuming all GCC is export-like; the GCC electronic-services regime not being live means most "GCC sales" are standard-rated local supplies.
+- <strong>detection:</strong> Compare <code>Sales_To_Customers_GCC_Amount</code> to invoices where <strong>counterparty</strong> nationality is a GCC state. Because intra-GCC defaults to standard KSA VAT, flag GCC-box amounts carrying category <code>Z</code>/0% with no export flag; reclass to <code>Standard_Rate_Sales_Amount_15</code>, VAT = amount × 15%. Also flag GCC amounts double-counted inside <code>Exports_Amount</code>.
+- <strong>data_used:</strong> Sales_To_Customers_GCC_<em>, Exports_</em>, Standard_Rate_Sales_<em>_15; INVOICES/INVOICELINE; </em><em>counterparty</em><em> nationality/residence.
+- </em><em>explains_gap:</em><em> Yes → GCC/Exports ↔ Standard (output).
+- </em><em>severity:</em><em> Medium.
+- </em><em>confirming_evidence:</em><em> Counterparty VAT registration in the GCC state + movement evidence; absent, treat as standard-rated. Cross-check RCM-08 (purchase mirror).
+- </em><em>ai_assist:</em>* Narrate the GCC-vs-export-vs-standard determination.</p>
+<p><strong><span id="rule-OUT-06" class="anchor"></span>OUT-06 — Government-supplied sales mishandled (15/5 split)</strong> <em>(CP-MASTER for government-customer flag)</em>
+- <strong>taxpayer_mistake:</strong> Errors in <code>Government_Supplied_Sales_*_15</code>/<code>_5</code> — omitting government sales, wrong rate split, or netting retentions so the base understates output.
+- <strong>why_it_happens:</strong> Public-sector contract terms and payment retention; rate-by-tax-point confusion; a separate government billing stream not integrated in VAT prep.
+- <strong>detection:</strong> Identify government-customer invoices via <strong>counterparty</strong> master (government BP type) and reconstruct their S-category <code>TAXSUBTOTAL</code> by rate. Compare to <code>Government_Supplied_Sales_Amount_15/_5</code> and <code>_VAT_Amount_15/_5</code>. Flag if reconstructed − declared &gt; τ, or if the 15/5 split contradicts each invoice's tax point vs 2020-07-01 (RATE-TRANSITION). Verify <code>_VAT_Amount ≈ _Amount × rate</code>.
+- <strong>data_used:</strong> Government_Supplied_Sales_<em>_15/_5; INVOICES/INVOICELINE/TAXSUBTOTAL; </em><em>counterparty</em><em> government-type master.
+- </em><em>explains_gap:</em><em> Yes → Government_Supplied_Sales (output).
+- </em><em>severity:</em><em> Medium.
+- </em><em>confirming_evidence:</em><em> Government contract + payment certificates; match retention timing to tax-point rules. Next-best: request the public-sector billing schedule.
+- </em><em>ai_assist:</em>* Read contract/notes to confirm retention treatment and rate basis.</p>
+<p><strong><span id="rule-OUT-07" class="anchor"></span>OUT-07 — Tax-point / period-straddle timing errors</strong>
+- <strong>taxpayer_mistake:</strong> Assigns a sale to the wrong period — invoice date used when delivery/payment set an earlier tax point (or vice-versa) — so output lands in the adjacent period.
+- <strong>why_it_happens:</strong> <code>ACCOUNTING_METHODE</code> (cash vs accrual) applied inconsistently; <code>IssueDate</code> used as a proxy when <code>ActualDeliveryDate</code> or prepayment (386) triggered the tax point; quarter-end straddle.
+- <strong>detection:</strong> For invoices where <code>IssueDate</code> and <code>ActualDeliveryDate</code> fall in different return periods, recompute the correct period (goods = delivery; prepayment 386 = payment; per <code>ACCOUNTING_METHODE</code>). Flag invoices whose declared period ≠ correct period; quantify per-period over/under-declaration.
+- <strong>data_used:</strong> INVOICES (IssueDate, ActualDeliveryDate, 386, PrepaidAmount); TP <code>ACCOUNTING_METHODE</code>; From_Date/To_Date across adjacent returns.
+- <strong>explains_gap:</strong> Yes → timing shift of Standard_Rate_Sales between periods (output).
+- <strong>severity:</strong> Medium (usually timing; penalty/interest exposure).
+- <strong>confirming_evidence:</strong> Delivery/payment dates fixing the tax point; confirm the amount surfaces in the neighbouring return before treating as a true understatement.
+- <strong>ai_assist:</strong> Narrate whether the straddle nets to a permanent loss or pure timing.</p>
+<p><strong><span id="rule-OUT-08" class="anchor"></span>OUT-08 — Output VAT not charged on deemed / nominal supplies</strong>
+- <strong>taxpayer_mistake:</strong> No output VAT on deemed supplies — free samples/gifts above de-minimis, business assets to private use, or assets on hand at deregistration — because no ordinary sales invoice is raised.
+- <strong>why_it_happens:</strong> "No money received = no VAT"; deregistration wind-down overlooked; give-aways not treated as supplies.
+- <strong>detection:</strong> Weak-signal, cross-source: (a) at deregistration (<code>DEREG_TYPE</code> set, <code>TO_DATE</code> in period) expect deemed-supply output on closing assets — often absent; (b) reconcile large <code>AllowanceTotalAmount</code>/zero-value/100%-discount lines carrying no <code>TaxAmount</code>; (c) <code>IND_SECTOR</code> give-away norm. Flag deregistration or material zero-consideration outputs with <strong>no</strong> corresponding output VAT.
+- <strong>data_used:</strong> TP <code>DEREG_TYPE</code>/<code>TO_DATE</code>/<code>IND_SECTOR</code>; INVOICES/INVOICELINE, LEGALMONETARYTOTAL (AllowanceTotalAmount, TaxExclusiveAmount), TAXTOTAL; sales boxes.
+- <strong>explains_gap:</strong> No (compliance/valuation — output owed but no ordinary invoice to reconcile against).
+- <strong>severity:</strong> Medium.
+- <strong>confirming_evidence:</strong> Fixed-asset register / deregistration stock list; marketing spend on give-aways. Next-best: request the deemed-supply working.
+- <strong>ai_assist:</strong> Read filing/deregistration notes and asset descriptions to identify triggers and estimate value.</p>
+<p><strong><span id="rule-OUT-09" class="anchor"></span>OUT-09 — Excessive / fictitious credit notes suppressing output VAT</strong> <em>(cross-ref COR-01 — engine must not double-adjust the same 381 set)</em>
+- <strong>taxpayer_mistake:</strong> Over-uses credit notes (<code>381</code>) to reduce declared output — without a genuine return/cancellation, or in the wrong period — so net Standard_Rate_Sales is understated.
+- <strong>why_it_happens:</strong> Managing declared VAT down at period-end; genuine adjustment in the wrong period; credit note issued but the supply still stands.
+- <strong>detection:</strong> Credit-note ratio = Σ <code>TaxAmount</code>[381] ÷ Σ <code>TaxAmount</code>[388] per period; flag vs <code>IND_SECTOR</code>/<code>BUSINESS_SIZE</code> peer norm or a period-on-period spike. Verify each material 381 references a valid original 388 (matching buyer, ≤ original, in-period tax point). Unmatched/over-value credit notes are added back: understated output = Σ invalid 381 <code>TaxAmount</code>. <strong>Scope split vs COR-01:</strong> OUT-09 = <em>invalid/excess</em> credits (added back); COR-01 = <em>valid</em> credits <em>not netted</em> (over-declaration). One 381 belongs to exactly one path.
+- <strong>data_used:</strong> INVOICES (381/388, IssueDate), TAXTOTAL/TAXSUBTOTAL; TP IND_SECTOR/BUSINESS_SIZE; Standard_Rate_Sales boxes.
+- <strong>explains_gap:</strong> Yes → reduces legitimate netting inside Standard_Rate_Sales (output).
+- <strong>severity:</strong> High.
+- <strong>confirming_evidence:</strong> Original invoice + evidence of return/cancellation (goods-return note, refund); unmatched credits escalate to a query letter.
+- <strong>ai_assist:</strong> Read credit-note <code>Reason</code> text to judge valid adjustment vs bare reduction.</p>
+<p><strong><span id="rule-OUT-10" class="anchor"></span>OUT-10 — Supplies to connected persons below fair market value</strong> <em>(CP-MASTER for relationship data)</em>
+- <strong>taxpayer_mistake:</strong> Supplies to related parties (where the recipient can't fully recover) priced below open-market value, understating output — VAT is due on FMV.
+- <strong>why_it_happens:</strong> Intercompany pricing set for non-VAT reasons; unaware of the FMV override.
+- <strong>detection:</strong> Identify connected-party invoices (shared ownership, <code>VAT_GROUP_REP_FLAG</code> relationships, repeated counterparty) whose unit price is materially below the taxpayer's arm's-length norm for the same item; uplift = (FMV − charged) × 15%.
+- <strong>data_used:</strong> INVOICES buyer party; INVOICELINE price vs peer; TP <code>VAT_GROUP_REP_FLAG</code>; <code>IND_SECTOR</code>.
+- <strong>explains_gap:</strong> No (valuation — output owed above invoiced value; not a clean box gap).
+- <strong>severity:</strong> Medium.
+- <strong>confirming_evidence:</strong> Ownership/relationship data + arm's-length price. Next-best: related-party transaction listing.
+- <strong>ai_assist:</strong> Read item descriptions for like-for-like price comparison.</p>
+<hr />
+<h2>Family INP — Input VAT (purchases-side)</h2>
+<p><em>The taxpayer's "incorrect input-VAT claims."</em> Baseline (<strong>BUYER-SOCKET, <code>partial=true</code></strong>): the app builds a <strong>recoverable-input pool</strong> = Σ <code>TAXSUBTOTAL.TaxAmount</code> over <code>INVOICES</code> where the taxpayer's <code>VAT_registration_number</code> = <strong>buyer</strong>, <code>InvoiceTypeCode=388</code>, <code>STATUSCODE</code>=cleared, netted for received 381, within period — <strong>contingent on buyer-keyed FATOORA retrieval</strong> (shared with COR-02). Until that socket is confirmed, INP rules that depend on the pool run <code>partial=true</code> and fall back to AP-ledger + registry + return-internal checks. INP covers <strong>domestic supplier-invoice-backed input only</strong>; import (Box 8) and reverse-charge (Box 9) input live in the RCM family.</p>
+<p><strong><span id="rule-INP-01" class="anchor"></span>INP-01 — Input VAT claimed with no valid cleared tax invoice</strong>
+- <strong>taxpayer_mistake:</strong> Claims input VAT it holds no cleared 388 for — estimates, pro-forma, statements, or docs never cleared on FATOORA.
+- <strong>why_it_happens:</strong> Honest timing (invoice not yet cleared) or evasion (inflating recoverable VAT with no document).
+- <strong>detection:</strong> Declared <code>Standard_Rate_Purchase_VAT_Amount (+_Adjustment)</code> vs recoverable-input pool. Flag residual where declared − pool &gt; τ. The portion with <strong>no matching cleared 388 where taxpayer = buyer</strong> (<code>STATUSCODE</code>≠cleared / <code>CLEANCEENABLED</code> false / no invoice) is the exposure.
+- <strong>data_used:</strong> <code>Standard_Rate_Purchase_Amount</code>/<code>_VAT_Amount</code>/<code>_Adjustment</code>, period; INVOICES (InvoiceTypeCode, STATUSCODE, CLEANCEENABLED, buyer VRN), TAXSUBTOTAL; <code>TP.VAT_registration_number</code>.
+- <strong>explains_gap:</strong> Yes → Standard_Rate_Purchase_VAT_Amount (input, overstated).
+- <strong>severity:</strong> High.
+- <strong>confirming_evidence:</strong> Request the specific cleared invoice UUIDs; if none/paper-only, disallow. Next-best: match to bank payment + supplier's own reported output.
+- <strong>ai_assist:</strong> Read <code>NOTE_OID_ID</code>/filing comments for "invoice pending clearance" to route timing vs no-document.</p>
+<p><strong><span id="rule-INP-02" class="anchor"></span>INP-02 — Input VAT on blocked / non-deductible items</strong> <em>(CP-MASTER for supplier sector)</em>
+- <strong>taxpayer_mistake:</strong> Recovers VAT on restricted costs — entertainment, catering/hospitality, employee private use, passenger vehicles not wholly for business.
+- <strong>why_it_happens:</strong> Misunderstanding KSA blocking rules; treats all supplier VAT as recoverable.
+- <strong>detection:</strong> Screen purchase lines for restricted categories via <strong>supplier</strong> sector (restaurants, hotels, catering, car dealers/rental) plus <code>INVOICELINE</code> descriptions. Sum VAT on flagged lines; any included in <code>Standard_Rate_Purchase_VAT_Amount</code> is disallowed.
+- <strong>data_used:</strong> INVOICELINE (description, category/percent, line TaxAmount); <strong>supplier</strong> sector; declared purchase VAT box.
+- <strong>explains_gap:</strong> Yes → Standard_Rate_Purchase_VAT_Amount (input); blocked VAT should never be in the pool, so it appears as a legitimate-looking match that is actually non-deductible.
+- <strong>severity:</strong> Medium (High for fleet/entertainment-heavy sectors).
+- <strong>confirming_evidence:</strong> Business-use log / fleet register; if none, disallow. Cross-check taxpayer <code>BUSINESS_SIZE</code>/sector norms for expected entertainment spend.
+- <strong>ai_assist:</strong> Classify free-text descriptions into blocked vs allowable ("meals", "gift", "vehicle").</p>
+<p><strong><span id="rule-INP-03" class="anchor"></span>INP-03 — No partial-exemption apportionment (100% input while making exempt supplies)</strong> <em>(shared recovery-ratio routine with RCM-05)</em>
+- <strong>taxpayer_mistake:</strong> Makes exempt supplies but recovers input in full instead of restricting residual/overhead input to the taxable-use proportion.
+- <strong>why_it_happens:</strong> Doesn't know it is partially exempt; ignores the recovery ratio.
+- <strong>detection:</strong> If <code>Exempt_Sales_Amount &gt; 0</code>, recovery ratio = (Standard+Zero+Export taxable supplies) ÷ total supplies. Expected recoverable ≈ directly-attributable taxable input + (residual input × ratio). Flag if declared <code>Standard_Rate_Purchase_VAT_Amount</code> ≈ full pool with <strong>no restriction</strong> despite material exempt sales. Exposure ≈ residual input × exempt proportion.
+- <strong>data_used:</strong> Exempt_Sales_Amount, Standard/Zero/Export sales; input pool; <code>TP.IND_SECTOR</code> (finance, residential real estate, healthcare/education).
+- <strong>explains_gap:</strong> Yes → Standard_Rate_Purchase_VAT_Amount (input, overstated).
+- <strong>severity:</strong> High (large SAR for financial/real-estate).
+- <strong>confirming_evidence:</strong> Request the apportionment calculation; recompute annual wash-up. Exempt-heavy sector + 100% recovery → escalate.
+- <strong>ai_assist:</strong> Read filing notes/<code>LETTER_*</code> for a claimed direct-attribution method before assuming standard method.</p>
+<p><strong><span id="rule-INP-04" class="anchor"></span>INP-04 — Duplicate input-VAT claim (cross-period re-claim of one UUID)</strong> <em>(scope: cross-period; DAT-05 owns within-period store dedup)</em>
+- <strong>taxpayer_mistake:</strong> Recovers the same purchase invoice again in a later period.
+- <strong>why_it_happens:</strong> Accrual + payment double-entry, catch-up bookkeeping, or a second copy (PDF vs cleared) booked.
+- <strong>detection:</strong> Count claims of each invoice UUID/<code>PIH</code> across the taxpayer's filed periods (using only <code>Current_Flag</code>). If cumulative claimed input over periods &gt; unique-UUID pool, or a UUID's <code>TaxAmount</code> appears in ≥2 filed periods, flag the duplicate VAT. (Same-period duplicate submissions belong to DAT-05.)
+- <strong>data_used:</strong> INVOICES UUID/PIH/IssueDate; multiple periods' <code>Standard_Rate_Purchase_VAT_Amount</code>; <code>Data_Version</code>/<code>Current_Flag</code>.
+- <strong>explains_gap:</strong> Yes → Standard_Rate_Purchase_VAT_Amount (input, duplicated).
+- <strong>severity:</strong> High.
+- <strong>confirming_evidence:</strong> Show the two periods carrying the same UUID; require reversal in the later period.
+- <strong>ai_assist:</strong> None (deterministic key match).</p>
+<p><strong><span id="rule-INP-05" class="anchor"></span>INP-05 — Input VAT claimed at the wrong rate</strong> <em>(calls RATE-TRANSITION)</em>
+- <strong>taxpayer_mistake:</strong> Recovers 15% when the cleared invoice carries 5% (transitional/pre-2020-07-01 continuing contract) or 0%, inflating the reclaim.
+- <strong>why_it_happens:</strong> Applies today's 15% to old/transitional invoices; ignores the <code>_15</code>/<code>_5</code> split.
+- <strong>detection:</strong> Per purchase invoice, compare claimed VAT to <code>INVOICELINE.ItemClassifiedTaxCategoryPercent</code> (15/5/0). Expected VAT = TaxableAmount × invoice percent. Flag where the declared VAT/base ratio implies a higher rate than invoices support; reconcile against declared <code>_15</code> vs <code>_5</code> split.
+- <strong>data_used:</strong> TAXSUBTOTAL (TaxableAmount, TaxAmount, percent); declared <code>Standard_Rate_Purchase_*_15</code>/<code>_5</code>; invoice IssueDate vs 2020-07-01.
+- <strong>explains_gap:</strong> Yes → Standard_Rate_Purchase_VAT_Amount (input, rate overstatement).
+- <strong>severity:</strong> Medium.
+- <strong>confirming_evidence:</strong> Line-level rate on the cleared invoice governs; recompute at correct percent.
+- <strong>ai_assist:</strong> None (arithmetic).</p>
+<p><strong><span id="rule-INP-06" class="anchor"></span>INP-06 — Input VAT claimed on zero-rated / exempt purchases</strong>
+- <strong>taxpayer_mistake:</strong> Books recoverable VAT against purchases carrying no VAT — zero-rated, exempt, or out-of-scope lines.
+- <strong>why_it_happens:</strong> Plugs a VAT figure onto a net-only cost; miscodes Z/E purchases as standard.
+- <strong>detection:</strong> Where declared <code>Standard_Rate_Purchase_VAT_Amount</code> maps to lines whose <code>ItemClassifiedTaxCategoryID = Z/E/O</code> (percent 0), flag — no VAT exists to recover. Cross-check that <code>Zero_Rated_Purchase_Amount</code>/<code>Exempt_Purchase_Amount</code> carry base but zero VAT.
+- <strong>data_used:</strong> category/percent, TAXSUBTOTAL; Zero_Rated_Purchase_<em>, Exempt_Purchase_</em>, Standard_Rate_Purchase_VAT_Amount.
+- <strong>explains_gap:</strong> Yes → Standard_Rate_Purchase_VAT_Amount (input, phantom).
+- <strong>severity:</strong> Medium.
+- <strong>confirming_evidence:</strong> Invoice tax category is authoritative; disallow VAT on Z/E/O lines.
+- <strong>ai_assist:</strong> None.</p>
+<p><strong><span id="rule-INP-07" class="anchor"></span>INP-07 — Claiming before the tax point / on prepayments</strong>
+- <strong>taxpayer_mistake:</strong> Recovers input before it is due — on a prepayment (386) or before delivery, or on cash-basis before payment.
+- <strong>why_it_happens:</strong> Accrues the reclaim early; cash-accounting timing error.
+- <strong>detection:</strong> Flag input tied to <code>InvoiceTypeCode 386</code> or <code>LEGALMONETARYTOTAL.PrepaidAmount &gt; 0</code> where <code>ActualDeliveryDate</code> is after <code>To_Date</code>. For <code>ACCOUNTING_METHODE=cash</code>, require payment evidence before the claim period; if the claim precedes delivery/clearance/payment, defer.
+- <strong>data_used:</strong> INVOICES (386, IssueDate/ActualDeliveryDate, PrepaidAmount); <code>TP.ACCOUNTING_METHODE</code>; period.
+- <strong>explains_gap:</strong> Yes → Standard_Rate_Purchase_VAT_Amount (input, timing).
+- <strong>severity:</strong> Medium (usually timing).
+- <strong>confirming_evidence:</strong> Delivery/payment date; reallocate to the correct period rather than disallow.
+- <strong>ai_assist:</strong> None.</p>
+<p><strong><span id="rule-INP-08" class="anchor"></span>INP-08 — Input VAT from non-registered / deregistered suppliers</strong> <em>(CP-MASTER for supplier registration)</em>
+- <strong>taxpayer_mistake:</strong> Recovers "VAT" charged by a supplier not validly registered — no valid registration means no recoverable tax.
+- <strong>why_it_happens:</strong> Accepts a non-compliant/handwritten invoice showing VAT; supplier not on FATOORA.
+- <strong>detection:</strong> Validate the <strong>supplier</strong> VAT number on the purchase invoice against the registry; flag where the claim has no cleared e-invoice AND the supplier registration is absent/invalid, or the supplier's <code>TO_DATE</code>/<code>DEREG_TYPE</code> shows deregistration at <code>IssueDate</code>.
+- <strong>data_used:</strong> supplier party VRN on INVOICES; <strong>supplier</strong> registration FROM_DATE/TO_DATE/DEREG_TYPE; declared purchase VAT.
+- <strong>explains_gap:</strong> Yes → Standard_Rate_Purchase_VAT_Amount (input) — <strong>lead compliance</strong> (recoverability turns on registry validity).
+- <strong>severity:</strong> High.
+- <strong>confirming_evidence:</strong> Registry lookup at invoice date; if unregistered/deregistered, disallow.
+- <strong>ai_assist:</strong> None.</p>
+<p><strong><span id="rule-INP-09" class="anchor"></span>INP-09 — Input VAT claimed in the wrong / a late period</strong>
+- <strong>taxpayer_mistake:</strong> Deducts an invoice in a period other than when cleared/received — pulled forward, pushed back, or beyond the allowable window.
+- <strong>why_it_happens:</strong> Catch-up bookkeeping; shifting reclaims to smooth cash flow or manage <code>Net_Due_VAT</code>.
+- <strong>detection:</strong> Per claimed invoice, compare <code>IssueDate</code>/clearance date to filed period. Flag input whose invoice date sits outside the period and outside the permitted recovery window; check whether it belongs in <code>Corrections_From_Previous_Period</code> (Box14) rather than current-period input.
+- <strong>data_used:</strong> INVOICES IssueDate/STATUSCODE; period, Box14; prior returns/amendments.
+- <strong>explains_gap:</strong> Yes → Standard_Rate_Purchase_VAT_Amount (input, period-allocation; often nets to zero across periods).
+- <strong>severity:</strong> Low–Medium (escalates if used to defer net VAT due).
+- <strong>confirming_evidence:</strong> Reconcile across adjacent periods; if claimed nowhere else, reallocate rather than disallow.
+- <strong>ai_assist:</strong> Read filing comments/<code>Reason_For_Amendment</code> to separate a genuine late-recovery correction from double-counting.</p>
+<p><strong><span id="rule-INP-10" class="anchor"></span>INP-10 — Capital-assets scheme adjustment on change of use not made</strong> <em>(requires AP/fixed-asset feed)</em>
+- <strong>taxpayer_mistake:</strong> Recovered full input on a capital asset, then shifted its use toward exempt/non-business without the annual adjustment over the 6-year (movables) / 10-year (immovables) window.
+- <strong>why_it_happens:</strong> Unaware of the capital-assets scheme; treats initial recovery as final.
+- <strong>detection:</strong> Identify high-value capital lines (large <code>INVOICELINE.TaxableAmount</code>, asset descriptions), then track the taxable-use ratio (<code>Exempt_Sales_*</code> vs Standard/Zero/Export) across periods; expected annual adjustment = input × (baseline − current ratio) ÷ adjustment period. Flag absence of any matching <code>Standard_Rate_Purchase_Adjustment</code>.
+- <strong>data_used:</strong> INVOICELINE (capital lines); sales-mix boxes over multiple periods; <code>Standard_Rate_Purchase_Adjustment</code>; <code>IND_SECTOR</code>.
+- <strong>explains_gap:</strong> No (compliance — multi-year adjustment, not a single-period invoice gap).
+- <strong>severity:</strong> Medium.
+- <strong>confirming_evidence:</strong> Fixed-asset register + use-ratio history. Next-best: request the capital-assets adjustment working.
+- <strong>ai_assist:</strong> Read asset descriptions to identify capital items.</p>
+<p><strong><span id="rule-INP-11" class="anchor"></span>INP-11 — Input not repaid on supplier invoices unpaid &gt; 12 months (bad-debt claw-back)</strong> <em>(mirror of COR-04; requires AP/payment feed)</em>
+- <strong>taxpayer_mistake:</strong> Deducted input VAT but never paid the supplier; KSA requires repaying that input once the debt is 12 months unpaid, and the taxpayer keeps the deduction.
+- <strong>why_it_happens:</strong> Cash flow; unaware of the claw-back mirror of bad-debt relief.
+- <strong>detection:</strong> Match purchase 388 to payment evidence (AP/bank feed); where <code>IssueDate</code> &gt; 12 months before period end with no payment, expect a positive <code>Standard_Rate_Purchase_Adjustment</code>/Box14 repayment. Flag absence.
+- <strong>data_used:</strong> purchase INVOICES IssueDate/TaxAmount; AP/payment feed; <code>Standard_Rate_Purchase_Adjustment</code>, <code>Corrections_From_Previous_Period</code>.
+- <strong>explains_gap:</strong> No (compliance — needs AP/payment feed).
+- <strong>severity:</strong> Medium.
+- <strong>confirming_evidence:</strong> Aged-payables &gt; 12 months. Next-best: request the AP aging.
+- <strong>ai_assist:</strong> None.</p>
+<hr />
+<h2>Family RCM — Reverse Charge &amp; Imports</h2>
+<p><em>Structural note governing the family:</em> <strong>Box 8 (<code>Imports_Paid_*</code>) and Box 9 (<code>Import_Accounted_*</code>) cannot be reconstructed from FATOORA.</strong> Non-resident suppliers are not ZATCA-registered and issue no cleared UBL; goods clear through Saudi Customs (Bayan), not FATOORA. This family ingests two external feeds — (1) a <strong>Customs/Bayan</strong> import feed and (2) an <strong>AP/purchase ledger</strong> keyed so <strong>counterparty</strong> residence/nationality identifies non-resident suppliers (CP-MASTER). The only e-invoice signal is the occasional <strong>self-billed</strong> 388. Where <code>explains_gap</code> says "No", the residual is real but must be evidenced from customs/AP, not FATOORA.</p>
+<p><strong><span id="rule-RCM-01" class="anchor"></span>RCM-01 — Imported services never reverse-charged (Box 9 left empty)</strong> <em>(AP feed; CP-MASTER)</em>
+- <strong>taxpayer_mistake:</strong> Pays a non-resident supplier for services (SaaS/licences, management &amp; royalty fees, foreign professional/marketing) and self-assesses no VAT; Box 9 stays zero.
+- <strong>why_it_happens:</strong> Believes no KSA VAT is due because the supplier is abroad and shows no VAT — unaware RCM shifts liability to the KSA recipient.
+- <strong>detection:</strong> From the AP ledger, sum taxable base of purchase lines whose <strong>counterparty</strong> is non-resident (residence flag / nationality ≠ SA, VRN null) and the line carries no local VAT, in period. If Σbase &gt; τ while <code>Import_Accounted_Amount</code>/<code>_VAT_Amount</code> ≈ 0 → expected self-assessment = Σbase × 15%.
+- <strong>data_used:</strong> AP/purchase ledger; <strong>counterparty</strong> residence/nationality/VRN; <code>Import_Accounted_*</code> (Box 9); period.
+- <strong>explains_gap:</strong> No — Box 9 not derivable from e-invoices; needs AP feed.
+- <strong>severity:</strong> High.
+- <strong>confirming_evidence:</strong> Match to foreign-supplier invoices/SWIFT payments; a self-billed cleared e-invoice for the counterparty confirms the supply was recognised but not in Box 9. Next-best: RFI for the foreign-supplier contract/invoice bundle.
+- <strong>ai_assist:</strong> Read supplier name/line narrative and <code>NOTE_OID_ID</code>/comments to classify the service (not an exempt financial fee) and narrate.</p>
+<p><strong><span id="rule-RCM-02" class="anchor"></span>RCM-02 — Goods-import VAT (Box 8) understated vs customs</strong> <em>(customs feed)</em>
+- <strong>taxpayer_mistake:</strong> Declares less import VAT in Box 8 than Bayan assessed for the period.
+- <strong>why_it_happens:</strong> Missed/late declarations, broker paid but not booked, or partial customs value carried in.
+- <strong>detection:</strong> Aggregate Bayan VAT for declarations with clearance date in period for the taxpayer's VRN; compare to <code>Imports_Paid_VAT_Amount</code>. If customs Σ − Box 8 &gt; τ → understatement (net of any approved import-VAT deferral moved to Box 9).
+- <strong>data_used:</strong> Customs/Bayan feed (value, VAT, clearance date, importer VRN); Box 8 and Box 9 (deferral); period.
+- <strong>explains_gap:</strong> No — customs feed required.
+- <strong>severity:</strong> High.
+- <strong>confirming_evidence:</strong> Line-level Bayan declarations; check for an import-VAT-deferral approval (value then legitimately in Box 9). Next-best: customs statement of account.
+- <strong>ai_assist:</strong> None material.</p>
+<p><strong><span id="rule-RCM-03" class="anchor"></span>RCM-03 — Import VAT claimed without actual customs payment (Box 8 input overstated)</strong> <em>(customs feed)</em>
+- <strong>taxpayer_mistake:</strong> Claims Box 8 input exceeding VAT actually paid at customs, or on VAT-exempt/suspended imports.
+- <strong>why_it_happens:</strong> Booking supplier proforma values, duplicated declarations, or claiming on suspended/exempt imports.
+- <strong>detection:</strong> Compare <code>Imports_Paid_VAT_Amount</code> (input side) to Bayan-paid VAT; if Box 8 &gt; customs Σ by &gt; τ, or matched declarations show an exemption/suspension code → over-claim = difference.
+- <strong>data_used:</strong> Customs/Bayan feed (paid VAT, exemption codes); Box 8.
+- <strong>explains_gap:</strong> No — customs feed required.
+- <strong>severity:</strong> High.
+- <strong>confirming_evidence:</strong> Bayan payment receipts; duplicate detection on customs reference numbers. Next-best: RFI for customs payment proof per import line.
+- <strong>ai_assist:</strong> None material.</p>
+<p><strong><span id="rule-RCM-04" class="anchor"></span>RCM-04 — Box 9 symmetry broken (output self-assessed, input omitted — or reverse)</strong> <em>(form-convention caveat)</em>
+- <strong>taxpayer_mistake:</strong> Reports the reverse-charge output but forgets the matching input deduction (over-pays), or claims the input without the output (under-pays), so the two legs don't tie.
+- <strong>why_it_happens:</strong> Manual one-sided journal; misunderstanding RCM is a two-sided entry.
+- <strong>detection:</strong> Per period, compare <code>Import_Accounted_VAT_Amount</code> (output leg) against the corresponding RCM input deduction. <strong>Form caveat:</strong> confirm from the live return form <em>where</em> the KSA return carries the RCM input leg (netted in <code>Standard_Rate_Purchase_VAT_Amount</code> Box 7, within Box 9 mechanics, or a dedicated field) before computing the test — do not assume Box 7. For a fully-taxable counterparty the two legs should be equal; if <code>|output − input| &gt; τ</code> and no partial-exemption reason applies → flag broken symmetry and direction.
+- <strong>data_used:</strong> <code>Import_Accounted_*</code> (Box 9), the confirmed RCM-input location; <code>IND_SECTOR</code> (to rule out legitimate partial exemption).
+- <strong>explains_gap:</strong> No — internal Box 8/9 mechanics.
+- <strong>severity:</strong> Medium (Low if over-paid; High if input taken with no output).
+- <strong>confirming_evidence:</strong> RCM journal entries showing one-sided posting. If deliberate, check apportionment (→ RCM-05). Next-best: request the reverse-charge working paper.
+- <strong>ai_assist:</strong> Read filing comments/<code>NOTE_OID_ID</code> for a stated partial-exemption rationale before flagging.</p>
+<p><strong><span id="rule-RCM-05" class="anchor"></span>RCM-05 — Reverse-charge / import input claimed without the right to deduct</strong> <em>(shared recovery-ratio routine with INP-03)</em>
+- <strong>taxpayer_mistake:</strong> Self-assesses RCM/import VAT and deducts in full though the supply relates to exempt activity, blocked expenditure, or non-business use — the input leg should be restricted.
+- <strong>why_it_happens:</strong> Assumes RCM always nets to zero; ignores apportionment and blocked-input rules.
+- <strong>detection:</strong> Where Box 9 or Box 8 input is claimed in full but the taxpayer has exempt output (<code>Exempt_Sales_Amount &gt; 0</code>) or sits in a partial-exemption <code>IND_SECTOR</code> → recompute deductible input = RCM VAT × recovery ratio (shared routine); flag excess.
+- <strong>data_used:</strong> <code>Import_Accounted_*</code>, <code>Imports_Paid_*</code>, <code>Exempt_Sales_Amount</code>; <code>IND_SECTOR</code>, <code>BUSINESS_SIZE</code>.
+- <strong>explains_gap:</strong> No (compliance — input-side restriction).
+- <strong>severity:</strong> High.
+- <strong>confirming_evidence:</strong> Apportionment vs claimed input; nature of the imported service (blocked categories). Next-best: request the partial-exemption method and recovery ratio.
+- <strong>ai_assist:</strong> Classify the imported service/good against blocked categories; narrate the shortfall.</p>
+<p><strong><span id="rule-RCM-06" class="anchor"></span>RCM-06 — Wrong rate applied to the self-assessed amount</strong> <em>(calls RATE-TRANSITION)</em>
+- <strong>taxpayer_mistake:</strong> Self-assesses RCM at 5% (or 0%) instead of 15%, or applies 15% to a genuinely pre-2020-07-01 supply.
+- <strong>why_it_happens:</strong> Legacy rate hard-coded after 2020; transitional-period contracts mis-rated.
+- <strong>detection:</strong> <code>Import_Accounted_VAT_Amount ÷ Import_Accounted_Amount</code>; if the implied rate ∉ {15%, and 5% only where service period &lt; 2020-07-01} → recompute at 15%. Cross-check <code>_15</code>/<code>_5</code> split consistency.
+- <strong>data_used:</strong> <code>Import_Accounted_Amount</code>/<code>_VAT_Amount</code> and <code>_15</code>/<code>_5</code> split, period; supply date from AP ledger.
+- <strong>explains_gap:</strong> No — internal rate check on Box 9.
+- <strong>severity:</strong> Medium.
+- <strong>confirming_evidence:</strong> Contract service dates vs the transition; recompute. Next-best: RFI for supply period on transitional contracts.
+- <strong>ai_assist:</strong> Read contract/invoice dates to confirm the supply falls after the change.</p>
+<p><strong><span id="rule-RCM-07" class="anchor"></span>RCM-07 — Reverse-charge supply booked as an ordinary domestic purchase (Box 7)</strong> <em>(AP feed; CP-MASTER)</em>
+- <strong>taxpayer_mistake:</strong> Records a non-resident supply as a normal standard-rated domestic purchase in Box 7 with a phantom input claim, and never raises the Box 9 output self-assessment.
+- <strong>why_it_happens:</strong> AP clerk codes the foreign invoice like a local vendor bill; ERP has no RCM tax code for the supplier.
+- <strong>detection:</strong> Find Box 7 purchase lines whose <strong>counterparty</strong> is non-resident (residence/nationality ≠ SA, no VRN) yet no matching FATOORA purchase e-invoice exists. No supporting e-invoice + foreign counterparty + input claimed + Box 9 = 0 → mis-classification; the output leg (base × 15%) is missing.
+- <strong>data_used:</strong> AP ledger + <strong>counterparty</strong> residence/nationality/VRN; Box 7, Box 9; e-invoice presence check.
+- <strong>explains_gap:</strong> <strong>Partial</strong> — the absent FATOORA purchase invoice behind a Box 7 line is the e-invoice signal; the RCM output leg needs the AP feed. "No → Box 9 output leg missing."
+- <strong>severity:</strong> Medium (often net-zero, but hides non-deductible RCM and breaks reconciliation).
+- <strong>confirming_evidence:</strong> Foreign vendor master + invoice with no VAT; absence of a cleared supplier e-invoice. Next-best: reclassify to Box 9 and test deductibility (link RCM-05).
+- <strong>ai_assist:</strong> Read vendor name/country from the AP line to confirm non-residence when the residence flag is missing.</p>
+<p><strong><span id="rule-RCM-08" class="anchor"></span>RCM-08 — Intra-GCC supply mistreated (wrong RCM / wrong box)</strong> <em>(customs/AP feed; CP-MASTER)</em>
+- <strong>taxpayer_mistake:</strong> Treats a purchase from another GCC state as a zero-rated import or export-related item instead of applying reverse charge, or double-counts it in both Box 8 and Box 9.
+- <strong>why_it_happens:</strong> GCC framework confusion — mutual-recognition transition not fully live, so other GCC states are effectively rest-of-world for KSA, yet taxpayers still book "GCC" specially.
+- <strong>detection:</strong> Where a <strong>supplier's</strong> nationality is a GCC state and the line is reported under <code>Sales_To_Customers_GCC_*</code>/zero-rated purchase rather than as an import, or appears in both Box 8 and Box 9 → flag mistreatment/double count.
+- <strong>data_used:</strong> <strong>counterparty</strong> nationality/residence; <code>Sales_To_Customers_GCC_*</code>, <code>Zero_Rated_Purchase_*</code>, Box 8, Box 9; customs feed for physical clearance.
+- <strong>explains_gap:</strong> No — needs customs/AP feed.
+- <strong>severity:</strong> Medium.
+- <strong>confirming_evidence:</strong> Customs entry (goods) vs service invoice (services) to pick the right box; de-dup Box 8/Box 9 on the same reference. Next-best: RFI for GCC supplier invoices and any customs clearance.
+- <strong>ai_assist:</strong> Narrate the current KSA treatment of intra-GCC supplies for the case memo.</p>
+<p><strong><span id="rule-RCM-09" class="anchor"></span>RCM-09 — Wrong-period / accounting-method mismatch on import &amp; RCM VAT</strong> <em>(customs/AP feed)</em>
+- <strong>taxpayer_mistake:</strong> Recognises import VAT (Box 8) or RCM (Box 9) in a different period than the customs clearance / tax-point date — pulling a claim forward or deferring an output leg.
+- <strong>why_it_happens:</strong> Cash-vs-accrual confusion; invoice-date vs clearance-date timing; month/quarter-end cut-off.
+- <strong>detection:</strong> Per Bayan/RCM item, compare its tax point (customs clearance date, or service completion for RCM) to the reported period, respecting <code>ACCOUNTING_METHODE</code>. Items a period early/late → timing difference (often reversing in the adjacent period).
+- <strong>data_used:</strong> Customs/Bayan (clearance date), AP (service date); period, Box 8, Box 9, <code>Corrections_From_Previous_Period</code> (Box 14); <code>ACCOUNTING_METHODE</code>.
+- <strong>explains_gap:</strong> No — timing reconciliation vs customs/AP.
+- <strong>severity:</strong> Low–Medium (higher if it straddles a rate change or year-end).
+- <strong>confirming_evidence:</strong> Reversal in the adjacent return, or a Box 14 correction that ties out. Next-best: check the neighbouring period before an assessment.
+- <strong>ai_assist:</strong> None material.</p>
+<p><strong><span id="rule-RCM-10" class="anchor"></span>RCM-10 — Reverse charge wrongly applied to a resident/registered supplier</strong> <em>(CP-MASTER)</em>
+- <strong>taxpayer_mistake:</strong> Self-assesses RCM (Box 9) on a supplier that is actually KSA-resident or ZATCA-registered — one who should have charged VAT on a normal cleared invoice — creating a phantom output/input pair and masking a missing supplier invoice.
+- <strong>why_it_happens:</strong> Stale vendor master (residence flag not updated after the supplier registered), or a KSA branch/PE of a foreign group.
+- <strong>detection:</strong> For Box 9 items, verify the <strong>supplier</strong> truly has no valid KSA VRN and is non-resident on the supply date. If a matching cleared FATOORA supplier e-invoice exists, or the counterparty is registered/resident → RCM mis-applied; correct treatment is a standard Box 7 purchase.
+- <strong>data_used:</strong> <strong>counterparty</strong> residence/nationality/VRN and validity FROM_DATE/TO_DATE; e-invoice INVOICES (supplier VRN match); Box 9, Box 7.
+- <strong>explains_gap:</strong> <strong>Partial</strong> — a cleared supplier e-invoice for a Box 9 counterparty is the tell. "No → belongs in Box 7."
+- <strong>severity:</strong> Medium.
+- <strong>confirming_evidence:</strong> Supplier's active KSA VRN and a cleared tax invoice. Next-best: reclassify to Box 7 and confirm the supplier remitted output VAT.
+- <strong>ai_assist:</strong> Match supplier name/VRN across the vendor master and e-invoice header when IDs don't tie exactly.</p>
+<hr />
+<h2>Family COR — Corrections &amp; Amendments</h2>
+<p><em>The taxpayer's "VAT amendments."</em> These rules police the mechanics of correcting a filing — credit/debit notes, the Box-14 self-correction channel, amended <code>Data_Version</code> returns, bad-debt relief, <code>_Adjustment</code> columns, and the Box-15 credit carry-forward. Detection is deterministic amount reconciliation; AI only reads free-text reasons. The Box-14 sign convention is decided once by S0 as <code>box14_sign_mode</code>, consumed identically here and in DAT-12.</p>
+<p><strong><span id="rule-COR-01" class="anchor"></span>COR-01 — Sales credit notes (381) issued but output VAT not reduced</strong> <em>(cross-ref OUT-09)</em>
+- <strong>taxpayer_mistake:</strong> Issued valid 381 credit notes but keyed the return from a gross sales report, so declared output still reflects full 388 and never nets the credited VAT.
+- <strong>why_it_happens:</strong> Timing — billing books the note but the manual return uses a gross figure, or the note post-dates prep. The inverse (a claimed reduction with no cleared 381) is evasion.
+- <strong>detection:</strong> In the SALE direction, per <code>Percent</code> (15/5), net output = Σ<code>TaxAmount</code>[388] − Σ<code>TaxAmount</code>[381], cleared. Compare to declared <code>Standard_Rate_Sales_VAT_Amount (±_Adjustment)</code>. If declared ≈ Σ[388] (gross) and (declared − net_recon) ≈ Σ[381] within τ, credits were omitted → gap explained. Where <code>BillingReference</code> is absent, net at aggregate within period×category×rate; unmatched → <code>UNLINKED_NOTE</code> bridge line (never silently consumed). Sign check: declared &lt; net_recon → a credit was over-claimed → escalate to OUT-09.
+- <strong>data_used:</strong> INVOICES (InvoiceTypeCode, STATUSCODE, IssueDate, BillingReference), TAXSUBTOTAL, INVOICELINE (category/percent); <code>Standard_Rate_Sales_VAT_Amount</code>/<code>_Adjustment</code> (<code>_15</code>/<code>_5</code>).
+- <strong>explains_gap:</strong> Yes → Standard_Rate_Sales_VAT_Amount (output; declared &gt; reconstructed by Σ[381]).
+- <strong>severity:</strong> Medium (High when reversed — credit claimed with no cleared 381).
+- <strong>confirming_evidence:</strong> Matched 381→388 (<code>BillingReference</code>) and clearance status. Claimed reduction with no cleared 381 → request the note; absent → under-declared output.
+- <strong>ai_assist:</strong> Read <code>NOTE_OID_ID</code>/comments to confirm a "sales return/discount" narrative. Language only.</p>
+<p><strong><span id="rule-COR-02" class="anchor"></span>COR-02 — Received supplier credit notes (381) not reversing input VAT</strong> <em>(canonical for supplier-side 381; supersedes former INP-09; BUYER-SOCKET)</em>
+- <strong>taxpayer_mistake:</strong> Received 381 credit notes from suppliers (returns, rebates) but kept the full input deduction, so <code>Standard_Rate_Purchase_VAT_Amount</code> was never reduced.
+- <strong>why_it_happens:</strong> Payables and return-preparer disconnected; sometimes deliberate over-claim.
+- <strong>detection:</strong> In the PURCHASE direction, keyed by buyer VRN, net input = Σ<code>TaxAmount</code>[388 received] − Σ<code>TaxAmount</code>[381 received]; compare <code>Standard_Rate_Purchase_VAT_Amount</code>. If declared ≈ gross input, gap = omitted supplier credits → over-claimed input. Runs <code>partial=true</code> (<code>PURCHASE_BUYER_UNIDENTIFIED</code>) until the buyer-retrieval socket is live; AP-ledger fallback otherwise.
+- <strong>data_used:</strong> purchase INVOICES/TAXSUBTOTAL keyed by buyer VRN; <code>Standard_Rate_Purchase_VAT_Amount</code>/<code>_Adjustment</code>.
+- <strong>explains_gap:</strong> Yes → Standard_Rate_Purchase_VAT_Amount (input; declared &gt; reconstructed net).
+- <strong>severity:</strong> High.
+- <strong>confirming_evidence:</strong> Supplier 381 linked to original 388. Next-best: purchase-ledger sample.
+- <strong>ai_assist:</strong> None (deterministic).</p>
+<p><strong><span id="rule-COR-03" class="anchor"></span>COR-03 — Debit notes (383) issued but additional output VAT not added</strong>
+- <strong>taxpayer_mistake:</strong> Issued 383 debit notes (price increases, undercharge corrections, additional consideration) but did not add the extra output to the return.
+- <strong>why_it_happens:</strong> Oversight/timing; occasionally deliberate to hold output down.
+- <strong>detection:</strong> In the SALE direction, Σ<code>TaxAmount</code>[383] signs +1 into reconstructed output. If declared <code>Standard_Rate_Sales_VAT_Amount</code> excludes it, declared &lt; reconstructed by Σ[383] → under-declared output. Match <code>BillingReference</code>→original 388.
+- <strong>data_used:</strong> INVOICES 383, TAXSUBTOTAL.TaxAmount, BillingReference; <code>Standard_Rate_Sales_VAT_Amount</code>.
+- <strong>explains_gap:</strong> Yes → Standard_Rate_Sales_VAT_Amount (output).
+- <strong>severity:</strong> Medium–High.
+- <strong>confirming_evidence:</strong> The cleared 383 and its original; if declared already includes it, no finding.
+- <strong>ai_assist:</strong> None.</p>
+<p><strong><span id="rule-COR-04" class="anchor"></span>COR-04 — Bad-debt relief claimed without meeting the conditions</strong> <em>(requires write-off/notification feed)</em>
+- <strong>taxpayer_mistake:</strong> Reduced output VAT as bad-debt relief (negative <code>Standard_Rate_Sales_Adjustment</code> or a Box-14 entry) without meeting Art. 40 conditions — 12 months not elapsed, debt not written off in the books, and/or customer not notified in writing.
+- <strong>why_it_happens:</strong> Cash-flow pressure; misreading the 12-month timing; relieving a debt actually paid.
+- <strong>detection:</strong> Isolate a negative output adjustment with <strong>no</strong> corresponding 381 (a relief claim, not a cancellation). On the referenced original 388, test <code>From_Date − IssueDate ≥ 12 months</code>; shorter → fails. Cross-check write-off entry + written notification (external feed); absent → conditions unproven. No 381 + no write-off/notification → unsupported relief disallowed.
+- <strong>data_used:</strong> <code>_Adjustment</code> or <code>Corrections_From_Previous_Period</code> (Box14); original 388 <code>IssueDate</code>; write-off ledger + notification feed.
+- <strong>explains_gap:</strong> Yes → Standard_Rate_Sales_VAT_Amount/<code>_Adjustment</code> (output, negative) <strong>only if conditions met</strong>; otherwise disallowed.
+- <strong>severity:</strong> High.
+- <strong>confirming_evidence:</strong> Write-off date + written customer notification. AI reads <code>LETTER_*</code>/notes for the notification (language only); the 12-month and write-off tests are deterministic.
+- <strong>ai_assist:</strong> Read <code>LETTER_*</code>/notes for the notification narrative.</p>
+<p><strong><span id="rule-COR-05" class="anchor"></span>COR-05 — Reconciling against the wrong return version (amended <code>Data_Version</code>)</strong> <em>(VERSION-SELECT — governs the whole engine)</em>
+- <strong>taxpayer_mistake:</strong> The flagged return was later amended (new <code>Data_Version</code>, <code>Current_Flag</code> flipped), so a naive comparison reconciles e-invoices against the post-hoc corrected figure and hides the original error.
+- <strong>why_it_happens:</strong> Normal amendment lifecycle; the trap is on the audit side — but any post-referral amendment sharpens the concern.
+- <strong>detection:</strong> Select the audited version by period + <code>Net_Due_VAT/Final_VAT_Due (Box16) ≈ OLD_TAX_AMT</code> at <code>AUD_DATE_G</code>, <strong>not</strong> merely <code>Current_Flag='Y'</code>. Reconstruct against that <code>Data_Version</code>. If no version's Box16 reconciles to <code>OLD_TAX_AMT</code> within τ → quarantine. Report (as-filed version − <code>Current_Flag='Y'</code> version) as the amendment's own movement; it should equal <code>DIFF_TAX_AMT</code>.
+- <strong>data_used:</strong> all <code>Data_Version</code> rows (Current_Flag, Submission_Date, Box13/14/15/16); audit case OLD/NEW/DIFF_TAX_AMT, AUD_DATE_G.
+- <strong>explains_gap:</strong> Yes → Box16 (both directions) via correct baseline; the version delta explains an e-invoice-vs-current gap.
+- <strong>severity:</strong> High.
+- <strong>confirming_evidence:</strong> A version whose Box16 matches <code>OLD_TAX_AMT</code>; if none, escalate to manual version identification.
+- <strong>ai_assist:</strong> None (identity math).</p>
+<p><strong><span id="rule-COR-06" class="anchor"></span>COR-06 — Prior-period correction (Box14) used above the per-error self-correction cap</strong> <em>(flag-for-review; per-error, not Box-14 total)</em>
+- <strong>taxpayer_mistake:</strong> Corrected a prior-period error through <code>Corrections_From_Previous_Period</code> (Box14) when the <strong>individual</strong> net error was ≥ SAR 5,000, which legally requires a formal amendment of the original period (Art. 63) — not a current-period Box-14 adjustment. Or bundled several errors into one Box-14 line to obscure the source period.
+- <strong>why_it_happens:</strong> A Box-14 line is faster than amending a historic return; sometimes deliberate blurring.
+- <strong>detection:</strong> The SAR 5,000 cap is <strong>per error</strong>, so <code>|Box14| &gt; 5,000</code> alone does <strong>not</strong> prove a breach (it may be several legitimate sub-cap corrections). Raise a <strong>review flag</strong>, provable as a breach only once a per-error decomposition is available: (a) <code>|Box14| &gt; 5,000</code> AND no amended <code>Data_Version</code> exists in any prior period → self-correction channel likely misused; (b) if the underlying per-error breakdown is supplied and any single error ≥ 5,000 → confirmed breach. Confirm Box14 participates correctly in <code>Box16 = Box13 + Box14 − Box15</code> under <code>box14_sign_mode</code>.
+- <strong>data_used:</strong> <code>Corrections_From_Previous_Period</code> (Box14), prior-period <code>Data_Version</code> set, Box13/15/16.
+- <strong>explains_gap:</strong> Yes → Box14 is a legitimate carve-out from residual (declared pass-through); the <strong>finding</strong> — the cap breach — is compliance/procedure.
+- <strong>severity:</strong> Medium (procedure); High when it conceals a large error.
+- <strong>confirming_evidence:</strong> Presence/absence of a matching amended prior return; the per-error decomposition. AI reads <code>Reason_For_Amendment</code>/<code>NOTE_OID_ID</code>; amount vs cap is deterministic once decomposed.
+- <strong>ai_assist:</strong> Read <code>Reason_For_Amendment</code>/<code>NOTE_OID_ID</code> to see whether the Box-14 amount is explained.</p>
+<p><strong><span id="rule-COR-07" class="anchor"></span>COR-07 — Correction double-counted (a 381 credit note AND a Box-14 adjustment)</strong>
+- <strong>taxpayer_mistake:</strong> Recorded one correction twice — a 381 that already reduced current output, and again as a Box-14 entry — relieving the same VAT twice.
+- <strong>why_it_happens:</strong> Gap between the billing system (auto-books the note) and the manual preparer (adds Box14 believing it was missed).
+- <strong>detection:</strong> Compare Box14 magnitude to Σ<code>TaxAmount</code>[381] for the same original supply/prior period. If a cleared 381 already reduced reconstructed output for a <code>BillingReference</code> <strong>and</strong> Box14 carries an equal/overlapping amount for that same prior period → double relief, within τ. Declared Box16 then sits below reconstructed by the duplicated amount.
+- <strong>data_used:</strong> INVOICES 381 (BillingReference, IssueDate, TaxAmount), Box14, prior <code>Data_Version</code>.
+- <strong>explains_gap:</strong> Yes → Box16 (over-relief); declared &lt; reconstructed → under-declaration.
+- <strong>severity:</strong> High.
+- <strong>confirming_evidence:</strong> The single underlying event behind both entries (one original 388). Next-best: ask which channel is intended and reverse the other.
+- <strong>ai_assist:</strong> Match the <code>Reason_For_Amendment</code> narrative to the 381 to confirm same event.</p>
+<p><strong><span id="rule-COR-08" class="anchor"></span>COR-08 — Orphan <code>_Adjustment</code> not tied to any invoice, note, or prior-version event</strong>
+- <strong>taxpayer_mistake:</strong> Populated a <code>_Adjustment</code> (e.g. <code>Standard_Rate_Sales_Adjustment</code>, <code>Standard_Rate_Purchase_Adjustment</code>) with a manual figure mapping to no 381/383, no 386 reversal, and no prior <code>Data_Version</code> delta — an undocumented plug.
+- <strong>why_it_happens:</strong> Manual balancing to force Box13/Box16 to a target, or a genuine adjustment left unevidenced.
+- <strong>detection:</strong> For each <code>_Adjustment ≠ 0</code>, search for a matching event within τ: (a) net 381/383 in the same period×category×rate; (b) a 386 prepayment reversal; (c) a delta vs the prior <code>Data_Version</code> for that box. No match → <code>ORPHAN_ADJUSTMENT</code>; the adjustment is itself the unexplained residual.
+- <strong>data_used:</strong> all <code>*_Adjustment</code> columns; INVOICES 381/383/386 (TaxAmount, BillingReference); prior <code>Data_Version</code> box values.
+- <strong>explains_gap:</strong> No when orphan (it <em>is</em> the residual); Yes when it ties to a note/prepayment/version event → explains the relevant box.
+- <strong>severity:</strong> Medium → High by amount.
+- <strong>confirming_evidence:</strong> The source document/event behind the number. AI reads filing comment/<code>Reason_For_Amendment</code> for a narration; if none, request support.
+- <strong>ai_assist:</strong> Read <code>Reason_For_Amendment</code>/filing comment for a narrated basis.</p>
+<p><strong><span id="rule-COR-09" class="anchor"></span>COR-09 — VAT credit (Box15) carried forward incorrectly</strong> <em>(refund/SADAD feed, partial where absent)</em>
+- <strong>taxpayer_mistake:</strong> Claimed <code>VAT_Credit</code> (Box15) not equal to the credit genuinely available from the prior period, or carried forward a credit already refunded/offset — understating <code>Net_Due_VAT/Final_VAT_Due</code>.
+- <strong>why_it_happens:</strong> Manual tracking of the running credit; re-using a refunded credit.
+- <strong>detection:</strong> Reconstruct the credit chain: current <code>VAT_Credit</code> should equal the prior period's carried credit minus any refund paid (<code>SADAD_Bill_Number</code>/refund feed). If current Box15 &gt; available credit within τ → over-carried. Verify <code>Box16 = Box13 + Box14 − Box15</code> under <code>box14_sign_mode</code>.
+- <strong>data_used:</strong> current &amp; prior Box15, Box16, Box13, Box14; refund/SADAD feed (<code>partial=true</code> where absent).
+- <strong>explains_gap:</strong> No (compliance) — Box15 is a declared carve-out; an over-carry understates Net Due directly.
+- <strong>severity:</strong> High.
+- <strong>confirming_evidence:</strong> Prior-period Box16 credit balance and refund status. Next-best: recompute the carry chain across the period sequence.
+- <strong>ai_assist:</strong> None.</p>
+<p><strong><span id="rule-COR-10" class="anchor"></span>COR-10 — Amended return reverses a genuine liability / weak or missing <code>Reason_For_Amendment</code></strong>
+- <strong>taxpayer_mistake:</strong> Filed an amended return (new <code>Data_Version</code>, <code>Current_Flag='Y'</code>) lowering a correctly-declared liability — e.g. stripping output VAT — often shortly after the case was flagged, with a blank/generic/contradictory <code>Reason_For_Amendment</code>.
+- <strong>why_it_happens:</strong> Attempt to escape an emerging assessment; or a careless amendment with no stated cause.
+- <strong>detection:</strong> Flag amendments where the new <code>Data_Version</code> reduces <code>Total_VAT_Due</code>/<code>Box16</code> vs the prior version <strong>and</strong> <code>Submission_Date</code> is after referral/<code>AUD_DATE_G</code>. Test support: does reconstructed output back the LOWER figure or the ORIGINAL? If e-invoices support the original (higher) → unsupported reversal (the reduction is the residual). Also flag <code>Reason_For_Amendment</code> null/blank/placeholder or not matching any detected 381/383/<code>_Adjustment</code> event.
+- <strong>data_used:</strong> <code>Data_Version</code> chain (Current_Flag, Submission_Date, Reason_For_Amendment, Box13/16); audit case AUD_DATE_G/OLD/NEW/DIFF_TAX_AMT; reconstructed output.
+- <strong>explains_gap:</strong> Yes → Box13/Box16; the amendment delta must reconcile to evidence, else it is unexplained residual.
+- <strong>severity:</strong> High.
+- <strong>confirming_evidence:</strong> Evidence backing the reduction (matching notes/adjustments). If none and e-invoices support the original, the amendment is disallowed.
+- <strong>ai_assist:</strong> Classify <code>Reason_For_Amendment</code> free text (blank/generic/specific) and check it against detected note/adjustment events; the deterministic amount test stays authoritative.</p>
+<hr />
+<h2>Family CMP — Compliance &amp; Business-Change</h2>
+<p><em>"Did the taxpayer play by the calendar and the rulebook?"</em> — filing/paying on time, staying correctly registered, and keeping filings in step with legal changes (5%→15%, real-estate/RETT, VAT-group status, filing frequency, e-invoicing waves). Most do not reconcile against a value box; they explain <em>why the return exists (or doesn't)</em> or why it is structurally wrong. Detection leans on <strong>dates</strong> and <strong>presence/absence</strong> checks. All box references use the schema's named fields (never numeric "Box 1/6" labels).</p>
+<p><strong><span id="rule-CMP-01" class="anchor"></span>CMP-01 — Late filing of the VAT return</strong>
+- <strong>taxpayer_mistake:</strong> Files the period's return after the legal due date (last day of the month following the period end), or not at all.
+- <strong>why_it_happens:</strong> Cash-flow avoidance, disorganisation, key-person dependency, "a nil/small period doesn't matter".
+- <strong>detection:</strong> Statutory deadline = last calendar day of the month following <code>To_Date</code>. Flag if <code>Submission_Date</code> &gt; deadline (or NULL for a closed period lacking a <code>Current_Flag='Y'</code> return). Days-late = <code>Submission_Date</code> − deadline; cross-check <code>Late_Filing_Penalty</code> present and ≈ statutory 5–25% of <code>Net_Due_VAT</code>; flag if penalty zero but filing late.
+- <strong>data_used:</strong> <code>Submission_Date</code>, <code>From_Date</code>, <code>To_Date</code>, <code>Late_Filing_Penalty</code>, <code>Net_Due_VAT</code>/<code>Final_VAT_Due</code>, <code>Current_Flag</code>, <code>Form_Number</code>.
+- <strong>explains_gap:</strong> No (compliance/timing).
+- <strong>severity:</strong> Medium (High if chronic / large <code>Net_Due_VAT</code>).
+- <strong>confirming_evidence:</strong> Deterministic from dates. If late with no penalty booked, escalate for penalty assessment. Next-best: check prior periods in <code>AUDIT_CASE</code> history for a pattern.
+- <strong>ai_assist:</strong> Read <code>NOTE_OID_ID</code>/<code>LETTER_*</code>/comments for a stated reason (outage, dispute) that may justify a waiver.</p>
+<p><strong><span id="rule-CMP-02" class="anchor"></span>CMP-02 — Late or unpaid VAT payment (SADAD)</strong> <em>(payment/collection feed)</em>
+- <strong>taxpayer_mistake:</strong> Submits the return but leaves <code>SADAD_Bill_Number</code> unpaid past the payment due date (same date as filing), accruing late-payment penalties.
+- <strong>why_it_happens:</strong> Liquidity; treating filing as the end of the obligation; filing-vs-payment deadline confusion.
+- <strong>detection:</strong> For returns with <code>Net_Due_VAT &gt; 0</code>, check payment status of <code>SADAD_Bill_Number</code> against the deadline. Flag if unpaid or paid late. Estimate accrued penalty = 5% × unpaid VAT × months elapsed; compare to any recorded penalty.
+- <strong>data_used:</strong> <code>SADAD_Bill_Number</code>, <code>Net_Due_VAT</code>/<code>Final_VAT_Due</code>, <code>To_Date</code>, <code>Submission_Date</code>; payment/collection feed.
+- <strong>explains_gap:</strong> No (compliance/payment).
+- <strong>severity:</strong> Medium (High for large or persistently unpaid balances).
+- <strong>confirming_evidence:</strong> SADAD settlement record is definitive. If unpaid, flag for collections and recompute cumulative penalty.
+- <strong>ai_assist:</strong> None; may narrate the running penalty accrual.</p>
+<p><strong><span id="rule-CMP-03" class="anchor"></span>CMP-03 — Nil / under-stated return while e-invoices show activity</strong> <em>(named trigger that calls DAT-01)</em>
+- <strong>taxpayer_mistake:</strong> Files a zero/token return (all boxes ≈ 0) though FATOORA invoices were cleared/reported for the period, understating output.
+- <strong>why_it_happens:</strong> Deliberate suppression, or "estimated" filing intending (but failing) to amend later.
+- <strong>detection:</strong> Trigger only: where <code>Total_VAT_Due</code> (Box13) and <code>Standard_Rate_Sales_VAT_Amount</code> ≈ 0 for a period, invoke <strong><span id="rule-DAT-01" class="anchor"></span>DAT-01</strong>'s reconstruction; if reconstructed cleared <code>TaxAmount</code> &gt; τ → flag. Does not re-derive the reconstruction.
+- <strong>data_used:</strong> <code>Standard_Rate_Sales_*</code>, <code>Total_VAT_Due</code>, <code>Net_Due_VAT</code>; DAT-01 reconstruction (INVOICES, TAXSUBTOTAL, LEGALMONETARYTOTAL).
+- <strong>explains_gap:</strong> Yes → <code>Standard_Rate_Sales</code> (specific sales boxes per category; not the Box13 aggregate).
+- <strong>severity:</strong> High.
+- <strong>confirming_evidence:</strong> The e-invoice ledger vs a nil return. Next-best: request an amended return; if none, propose assessment for the reconstructed VAT.
+- <strong>ai_assist:</strong> Read any note/<code>Reason_For_Amendment</code> claiming "estimated pending closure" to separate timing from suppression.</p>
+<p><strong><span id="rule-CMP-04" class="anchor"></span>CMP-04 — Failure to register / late registration above the mandatory threshold</strong> <em>(CP-MASTER / third-party sales where pre-registration)</em>
+- <strong>taxpayer_mistake:</strong> Taxable turnover exceeds the SAR 375,000 mandatory threshold (rolling 12 months) but the taxpayer has no <code>VAT_registration_number</code>, or registered late — leaving taxable periods unreported.
+- <strong>why_it_happens:</strong> Ignorance of the threshold, informal/growing business, deliberate avoidance.
+- <strong>detection:</strong> Aggregate reconstructed taxable sales (category S at 15%+5%) over rolling 12 months; compare to 375,000. If cumulative &gt; threshold and there is no <code>VAT_registration_number</code> or a registration <code>FROM_DATE</code> later than the crossing month → flag with the delta period.
+- <strong>data_used:</strong> <code>VAT_registration_number</code>, registration FROM_DATE/TO_DATE, <code>BUSINESS_SIZE</code>, <code>IND_SECTOR</code>; TAXSUBTOTAL/LEGALMONETARYTOTAL (or third-party sales pre-e-invoicing).
+- <strong>explains_gap:</strong> No (registration) — explains why no returns exist for active periods.
+- <strong>severity:</strong> High.
+- <strong>confirming_evidence:</strong> Reconstructed 12-month turnover crossing the threshold with no matching registration date. Next-best: enforce backdated registration and assess the unregistered periods.
+- <strong>ai_assist:</strong> Read business-activity descriptions/correspondence to confirm the activity is a taxable supply (avoid a false trigger on exempt activity).</p>
+<p><strong><span id="rule-CMP-05" class="anchor"></span>CMP-05 — Charging VAT after deregistration / failure to de-register</strong>
+- <strong>taxpayer_mistake:</strong> Deregistered (or validity ended) yet keeps issuing tax invoices with VAT, or ceased trading below the voluntary threshold but never de-registered — collecting VAT it may not remit.
+- <strong>why_it_happens:</strong> ERP invoice templates not updated after status change; ceasing without notifying ZATCA; deliberate collection while unregistered.
+- <strong>detection:</strong> Compare <code>INVOICES.IssueDate</code> against the taxpayer's <code>TO_DATE</code>/<code>DEREG_TYPE</code>. Flag any tax invoice (388, category S, 15/5) with <code>IssueDate</code> after <code>TO_DATE</code>/deregistration effective date. Conversely, flag prolonged nil activity + no e-invoices + no de-registration (<code>DEREG_TYPE</code> empty) as possible failure-to-deregister.
+- <strong>data_used:</strong> <code>TO_DATE</code>, <code>DEREG_TYPE</code>, <code>VAT_registration_number</code>; INVOICES (IssueDate, InvoiceTypeCode, STATUSCODE), INVOICELINE.
+- <strong>explains_gap:</strong> Yes → <code>Standard_Rate_Sales</code> (output over-collected while unregistered) + registration.
+- <strong>severity:</strong> High.
+- <strong>confirming_evidence:</strong> Post-<code>TO_DATE</code> cleared tax invoice. Next-best: demand remittance of VAT collected while unregistered, or correct/cancel via credit notes.
+- <strong>ai_assist:</strong> Read <code>DEREG_TYPE</code> reason text/letters to check whether cessation was genuine or the number is misused.</p>
+<p><strong><span id="rule-CMP-06" class="anchor"></span>CMP-06 — VAT-group changes not reflected in filings</strong> <em>(CP-MASTER for member identity)</em>
+- <strong>taxpayer_mistake:</strong> A member joins/leaves a VAT group (or the representative changes) but returns are still filed under the individual member's number, or intra-group supplies are treated as taxable — causing double-counting or gaps between the group return and member e-invoices.
+- <strong>why_it_happens:</strong> Group mechanics are complex; filing setup not updated when <code>VAT_GROUP_REP_FLAG</code> changes; intra-group supplies (out of scope) invoiced with VAT.
+- <strong>detection:</strong> Where <code>VAT_GROUP_REP_FLAG</code> indicates membership, check that member filings are consolidated under the representative's <code>VAT_registration_number</code> (only the rep files). Flag if a non-rep member also files, if the group return's reconstructed sales exclude a member's e-invoices, or if intra-group invoices carry VAT. Compare the flag-change date to the first inconsistent <code>From_Date</code>.
+- <strong>data_used:</strong> <code>VAT_GROUP_REP_FLAG</code>, <code>VAT_registration_number</code>, <code>ZZBPTYPE</code>, validity dates; return filer identity (<code>ID_Number</code>, <code>Form_Number</code>); INVOICES per member.
+- <strong>explains_gap:</strong> Yes → <code>Standard_Rate_Sales</code> (group-vs-member reconciliation; not a numeric "Box 6" aggregate).
+- <strong>severity:</strong> Medium (High if intra-group VAT double-counted at scale).
+- <strong>confirming_evidence:</strong> Group registration record + which entity filed. Next-best: realign filings to the representative and reverse VAT wrongly charged intra-group.
+- <strong>ai_assist:</strong> Read group-registration correspondence to confirm effective dates when master-data timing is ambiguous.</p>
+<p><strong><span id="rule-CMP-07" class="anchor"></span>CMP-07 — Ignoring the 2020 rate change (portfolio-level trigger)</strong> <em>(owns RATE-TRANSITION detector; defers arithmetic to OUT-02/INP-05/RCM-06)</em>
+- <strong>taxpayer_mistake:</strong> For supplies on/after 2020-07-01 the taxpayer applies 5% instead of 15% (invoices and/or <code>_5</code> boxes), understating output — or the input mirror.
+- <strong>why_it_happens:</strong> ERP tax code never updated; transitional-rule misapplication; inertia.
+- <strong>detection:</strong> Portfolio trigger: for periods with <code>To_Date ≥ 2020-07-01</code>, flag any material balance in a <code>_5</code> box (<code>Standard_Rate_Sales_*_5</code>, <code>Standard_Rate_Purchase_*_5</code>, <code>Government_Supplied_Sales_*_5</code>, <code>Import_Accounted_*_5</code>) for a period wholly after the switch. The <strong>shared RATE-TRANSITION detector</strong> then hands the arithmetic to OUT-02 (output), INP-05 (input), RCM-06 (RCM) — CMP-07 does not itself recompute per-line VAT, avoiding triplication.
+- <strong>data_used:</strong> <code>*_15</code>/<code>*_5</code> split boxes across sales/purchase/import; period boundaries; RATE-TRANSITION detector output.
+- <strong>explains_gap:</strong> Yes → <code>Standard_Rate_Sales</code> / <code>Standard_Rate_Purchase</code> <code>_5</code>↔<code>_15</code> (routed to OUT-02/INP-05/RCM-06).
+- <strong>severity:</strong> High.
+- <strong>confirming_evidence:</strong> A <code>_5</code> balance for a wholly-post-switch period with no transitional basis. Next-best: verify supply/contract dates; if not transitional, the family rules assess the differential.
+- <strong>ai_assist:</strong> Read contract references/invoice notes to detect a legitimate transitional supply before flagging.</p>
+<p><strong><span id="rule-CMP-08" class="anchor"></span>CMP-08 — Wrong filing frequency for the turnover band</strong>
+- <strong>taxpayer_mistake:</strong> A large taxpayer (annual supplies &gt; SAR 40m, required to file monthly) files quarterly, or a smaller taxpayer files on a frequency inconsistent with its band — missing periods and miscalculating deadlines.
+- <strong>why_it_happens:</strong> Turnover grew past the SAR 40m monthly line but frequency was never switched; ERP calendar misconfigured.
+- <strong>detection:</strong> Derive expected frequency from <code>BUSINESS_SIZE</code>/reconstructed annual turnover (&gt;40m → monthly, else quarterly). Inspect the <code>From_Date→To_Date</code> span of filed returns: flag ~3-month spans where monthly is required, missing monthly periods, or overlapping/duplicate spans.
+- <strong>data_used:</strong> <code>From_Date</code>, <code>To_Date</code>, <code>Form_Number</code>, <code>Current_Flag</code>; <code>BUSINESS_SIZE</code>, <code>IND_SECTOR</code>; reconstructed annual turnover.
+- <strong>explains_gap:</strong> No (structural) — but explains period-alignment mismatches vs e-invoices.
+- <strong>severity:</strong> Medium.
+- <strong>confirming_evidence:</strong> Return period length vs mandated frequency. Next-best: instruct correct frequency and re-file affected periods.
+- <strong>ai_assist:</strong> None (deterministic).</p>
+<p><strong><span id="rule-CMP-09" class="anchor"></span>CMP-09 — Business/sector/activity change not reflected</strong>
+- <strong>taxpayer_mistake:</strong> Changes or adds an activity (into exempt financial services/real estate, or into zero-rated exports) but keeps declaring under the old treatment — mis-populating the exempt/zero boxes.
+- <strong>why_it_happens:</strong> <code>IND_SECTOR</code>/activity not updated; staff unaware the new activity has a different status; ERP still using old tax codes.
+- <strong>detection:</strong> Compare <code>IND_SECTOR</code>/activity against the mix of <code>ItemClassifiedTaxCategoryID</code> (S/Z/E/O) actually seen in e-invoices. Flag divergence — e.g. invoices now largely E/Z while returns fill only <code>Standard_Rate_Sales_*</code>, or <code>Exempt_Sales_*</code>/<code>Zero_Rated_Sales_*</code> staying zero despite E/Z invoice lines.
+- <strong>data_used:</strong> <code>IND_SECTOR</code>, <code>ZZBPTYPE</code>, validity dates; <code>Exempt_Sales_*</code>, <code>Zero_Rated_Sales_*</code>, <code>Standard_Rate_Sales_*</code>, <code>Exports_*</code>; <code>INVOICELINE.ItemClassifiedTaxCategoryID</code>.
+- <strong>explains_gap:</strong> Yes → <code>Zero_Rated_Sales</code> / <code>Exempt_Sales</code> / <code>Exports</code> vs <code>Standard_Rate_Sales</code>.
+- <strong>severity:</strong> Medium.
+- <strong>confirming_evidence:</strong> Shift in invoice tax-category mix not mirrored in the return boxes. Next-best: update activity/sector, confirm treatment, re-map the boxes.
+- <strong>ai_assist:</strong> Read item descriptions/activity correspondence to classify the new supply's status before concluding.</p>
+<p><strong><span id="rule-CMP-10" class="anchor"></span>CMP-10 — Missing period / broken filing continuity</strong>
+- <strong>taxpayer_mistake:</strong> Between an active registration <code>FROM_DATE</code> and <code>TO_DATE</code> (or present), one or more tax periods have no return at all — not nil, simply absent — leaving e-invoice activity wholly unreported.
+- <strong>why_it_happens:</strong> Overlooked period, staff turnover, or deliberately dropping a high-liability month.
+- <strong>detection:</strong> Generate the expected period sequence from registration <code>FROM_DATE</code> to period-end (per CMP-08 frequency). Flag any expected period with no <code>Current_Flag='Y'</code> return. For each missing period, check e-invoice activity to quantify unreported output/input and prioritise.
+- <strong>data_used:</strong> <code>From_Date</code>, <code>To_Date</code>, <code>Current_Flag</code>, <code>Form_Number</code>; registration <code>FROM_DATE</code>/<code>TO_DATE</code>, <code>DEREG_TYPE</code>; INVOICES/TAXSUBTOTAL.
+- <strong>explains_gap:</strong> No (compliance) — a missing return is the extreme case of an e-invoice-vs-filing gap.
+- <strong>severity:</strong> High.
+- <strong>confirming_evidence:</strong> Absent return in an active registration window. Next-best: compel filing; assess from reconstructed e-invoices if not filed.
+- <strong>ai_assist:</strong> None; may narrate the missing-period timeline.</p>
+<p><strong><span id="rule-CMP-11" class="anchor"></span>CMP-11 — Real-estate supply still charged 15% VAT after the RETT reform (2020-10-04)</strong> <em>(the marquee VAT-rule change; CP-MASTER for property-type context)</em>
+- <strong>taxpayer_mistake:</strong> Continues charging/declaring 15% output on real-estate disposals that became VAT-exempt (and subject to 5% Real Estate Transaction Tax) from 2020-10-04, or keeps full input recovery on now-exempt property activity without apportioning.
+- <strong>why_it_happens:</strong> ERP tax codes never updated for the RETT reform; confusion over which property supplies stay taxable (commercial leases remain standard-rated) vs exempt.
+- <strong>detection:</strong> For <code>IND_SECTOR</code> = real-estate/construction, flag <code>INVOICELINE</code> category-S property lines with tax point ≥ 2020-10-04 landing in <code>Standard_Rate_Sales_*</code>; expected reclass to <code>Exempt_Sales_*</code> plus input restriction per INP-03. Corroborate: <code>Exempt_Sales_Amount ≈ 0</code> despite property activity.
+- <strong>data_used:</strong> <code>IND_SECTOR</code>/<code>ZZBPTYPE</code>; INVOICELINE category/percent, IssueDate/ActualDeliveryDate; <code>Standard_Rate_Sales_*</code>, <code>Exempt_Sales_*</code>.
+- <strong>explains_gap:</strong> Yes → <code>Standard_Rate_Sales</code> ↔ <code>Exempt_Sales</code> (output).
+- <strong>severity:</strong> High.
+- <strong>confirming_evidence:</strong> Property type + supply date vs the RETT effective date; contracts. Next-best: request the property-supply schedule.
+- <strong>ai_assist:</strong> Classify item/contract text to confirm in-scope real estate vs a standard-rated facilities service.</p>
+<p><strong><span id="rule-CMP-12" class="anchor"></span>CMP-12 — E-invoicing Phase-2 integration-wave non-compliance</strong> <em>(external mandate-wave feed)</em>
+- <strong>taxpayer_mistake:</strong> A taxpayer in an assigned integration wave is still only reporting/printing rather than clearing/integrating by its mandate date.
+- <strong>why_it_happens:</strong> Integration project not delivered on time; unaware of the wave assignment.
+- <strong>detection:</strong> Compare the <code>CLEANCEENABLED</code>/<code>STATUSCODE</code> mix of the taxpayer's invoices against the taxpayer's assigned wave date (external mandate feed). Standard invoices not being cleared after the wave date → flag.
+- <strong>data_used:</strong> INVOICES <code>CLEANCEENABLED</code>, <code>STATUSCODE</code>, IssueDate; external integration-wave mandate feed; <code>VAT_registration_number</code>.
+- <strong>explains_gap:</strong> No (compliance).
+- <strong>severity:</strong> Medium.
+- <strong>confirming_evidence:</strong> Wave-assignment record vs clearance behaviour. Next-best: refer for e-invoicing-compliance action.
+- <strong>ai_assist:</strong> None.</p>
+<hr />
+<h2>Family DAT — Data / E-invoicing Integrity</h2>
+<p><em>The reconciliation core.</em> One engine reconstructs the expected return by aggregating cleared <code>TAXSUBTOTAL</code> (TaxableAmount + TaxAmount) by category × rate × direction (seller-VRN vs buyer-VRN) × period, then names the explanation for every residual against the shared gate <code>τ</code>. All amounts reconcile in SAR (<code>TaxCurrencyCode</code>). DAT-12 is the pre-reconciliation sanity gate that must pass before any residual is trusted.</p>
+<p><strong>DAT-01 — Cleared invoices missing from the filing (under-declared output)</strong> <em>(the master sales-side reconciliation engine; OUT-01…09 are its explainers)</em>
+- <strong>taxpayer_mistake:</strong> Some cleared 388 invoices in the period were never carried into the declared sales boxes, so output is understated.
+- <strong>why_it_happens:</strong> Honest omission — invoices raised in a peripheral system/branch not swept into the return; sometimes deliberate suppression of a subset.
+- <strong>detection:</strong> Aggregate <code>TAXSUBTOTAL.TaxAmount</code> for seller-VRN = TP, category S / percent 15, <code>IssueDate</code> in period, cleared, net of 381. Compare Σ to <code>Standard_Rate_Sales_VAT_Amount_15</code> (base to <code>Standard_Rate_Sales_Amount_15</code>). If store &gt; declared beyond τ, list the missing UUIDs. Repeat per rate (<code>_5</code>), and for Zero_Rated_Sales, Exports, Government_Supplied_Sales.
+- <strong>data_used:</strong> INVOICES, TAXSUBTOTAL, <code>TP.VAT_registration_number</code>; <code>Standard_Rate_Sales_Amount/_VAT_Amount_15/_5</code>, <code>Zero_Rated_Sales_*</code>, <code>Exports_*</code>, <code>Government_Supplied_Sales_*</code>.
+- <strong>explains_gap:</strong> Yes → the mapped sales box (output).
+- <strong>severity:</strong> High.
+- <strong>confirming_evidence:</strong> The enumerated cleared UUIDs with buyer VRNs are the proof; next-best is the amendment adding them (COR family) or mapping to a legitimate exclusion rule before treating as residual.
+- <strong>ai_assist:</strong> Read <code>Reason_For_Amendment</code>/<code>NOTE_OID_ID</code>/<code>LETTER_*</code> for a narrated omission (e.g. "billed under group rep VRN").</p>
+<p><strong><span id="rule-DAT-02" class="anchor"></span>DAT-02 — Filing declares more than the e-invoice store holds (over-declared / under-reporting to FATOORA)</strong> <em>(purchase-side variant depends on BUYER-SOCKET)</em>
+- <strong>taxpayer_mistake:</strong> The declared box exceeds cleared invoices — the return was inflated, or (more often) real sales were never issued as e-invoices, breaching the FATOORA obligation.
+- <strong>why_it_happens:</strong> Manual top-ups/estimates on the portal; legacy non-compliant billing outside ZATCA; padding output to absorb an unsupported input claim.
+- <strong>detection:</strong> Same reconstruction as DAT-01, sign reversed: <code>declared box − Σ store &gt; τ</code>. Split the residual into (a) <em>no invoice exists</em> (compliance breach) vs (b) <em>invoice exists but wrong category</em>, by re-checking the same counterparties across all categories. Purchase-side variant runs <code>partial=true</code> until the buyer socket is live.
+- <strong>data_used:</strong> sales boxes; INVOICES/TAXSUBTOTAL; <code>IND_SECTOR</code>/<code>BUSINESS_SIZE</code> for plausibility.
+- <strong>explains_gap:</strong> Yes → whichever sales box is over-declared (output).
+- <strong>severity:</strong> Medium (self-penalising on VAT but signals e-invoicing non-compliance).
+- <strong>confirming_evidence:</strong> Absence of matching UUIDs for the excess; confirm against sub-ledger before concluding non-issuance.
+- <strong>ai_assist:</strong> Narrate the two-way split for the auditor's note.</p>
+<p><strong><span id="rule-DAT-03" class="anchor"></span>DAT-03 — Invoices reported late (supply in period, clearance in the next)</strong>
+- <strong>taxpayer_mistake:</strong> Tax point falls in the period but the invoice was cleared after <code>To_Date</code>, so it lands in the wrong return.
+- <strong>why_it_happens:</strong> End-of-period invoices cleared in the next period's first days; batch clearance runs; accrual vs clearance calendar.
+- <strong>detection:</strong> Compare tax point (<code>ActualDeliveryDate</code> else <code>IssueDate</code>) against the <code>STATUSCODE</code> clearance timestamp. Flag invoices where tax point ≤ <code>To_Date</code> but clearance &gt; <code>To_Date</code> (belongs here, may be missing) and the mirror (cleared this period, tax point prior). Sum crossing-boundary VAT and test whether it closes the DAT-01/DAT-02 residual.
+- <strong>data_used:</strong> INVOICES IssueDate, ActualDeliveryDate, STATUSCODE, CLEANCEENABLED; period; <code>ACCOUNTING_METHODE</code>.
+- <strong>explains_gap:</strong> Yes → the affected sales/purchase box (timing, both directions).
+- <strong>severity:</strong> Medium (usually genuine timing; nets to zero across two periods).
+- <strong>confirming_evidence:</strong> The invoice appears in the adjacent period's reconstruction; confirm by extending the window ±1 period and re-running.
+- <strong>ai_assist:</strong> None.</p>
+<p><strong><span id="rule-DAT-04" class="anchor"></span>DAT-04 — Non-cleared / rejected invoices wrongly included or excluded</strong>
+- <strong>taxpayer_mistake:</strong> Rejected/never-cleared invoices (<code>STATUSCODE</code>≠cleared) are counted in the return, or genuinely cleared ones are dropped.
+- <strong>why_it_happens:</strong> Misunderstanding clearance — standard invoices (<code>CLEANCEENABLED=Y</code>) are void until cleared; taxpayer books them at print time regardless of ZATCA acceptance.
+- <strong>detection:</strong> Partition the reconstruction by <code>STATUSCODE</code>. Any non-cleared/rejected invoice whose VAT is nonetheless in the declared box is an over-inclusion; any cleared invoice absent is DAT-01. Quantify the non-cleared VAT vs the residual.
+- <strong>data_used:</strong> INVOICES STATUSCODE, CLEANCEENABLED, PDH; TAXTOTAL TaxAmount; sales/purchase boxes.
+- <strong>explains_gap:</strong> Yes → affected box (both directions).
+- <strong>severity:</strong> High (rejected invoices carry no valid VAT; input claim on them is disallowed).
+- <strong>confirming_evidence:</strong> The status flag itself; for input, a rejected seller invoice invalidates the buyer's deduction — cross-check INP-01.
+- <strong>ai_assist:</strong> None.</p>
+<p><strong><span id="rule-DAT-05" class="anchor"></span>DAT-05 — Duplicate invoices inflating totals (same UUID / broken hash chain)</strong> <em>(scope: within-period store dedup; INP-04 owns cross-period re-claim)</em>
+- <strong>taxpayer_mistake:</strong> The same invoice counted twice — identical <code>UUID</code>, or a re-issued near-duplicate (same seller VRN, invoice number, IssueDate, total, different UUID) — inflating the reconstructed side.
+- <strong>why_it_happens:</strong> FATOORA resubmission/retries; migration double-loads; occasionally deliberate to justify a duplicated input claim.
+- <strong>detection:</strong> Group the store by <code>UUID</code> (exact dup: count &gt; 1) and by natural key {seller VRN, invoice number, IssueDate, LEGALMONETARYTOTAL total} (near-dup). Test the <code>PDH</code> chain: two invoices citing the same predecessor hash indicate a fork/duplicate. Deduplicate before reconstruction; report Σ VAT removed. (Cross-period re-claim of one UUID = INP-04.)
+- <strong>data_used:</strong> INVOICES UUID, PDH, IssueDate; LEGALMONETARYTOTAL; seller/buyer VRN.
+- <strong>explains_gap:</strong> Yes → whichever box was inflated (both directions).
+- <strong>severity:</strong> Medium (High on the input/purchase side).
+- <strong>confirming_evidence:</strong> Identical hash/natural key; single copy remains after dedup and reconciles.
+- <strong>ai_assist:</strong> None.</p>
+<p><strong><span id="rule-DAT-06" class="anchor"></span>DAT-06 — Wrong buyer/seller VAT number → wrong party or direction</strong>
+- <strong>taxpayer_mistake:</strong> An invoice carries an incorrect counterparty VRN, so it is booked to the wrong entity or flips direction (a purchase read as a sale), distorting both output and input.
+- <strong>why_it_happens:</strong> VRN typo; confusion within a VAT group where members share billing; self-billed invoices where roles invert.
+- <strong>detection:</strong> For every invoice, verify seller-VRN or buyer-VRN = TP's <code>VAT_registration_number</code> (or a group member under the rep). If TP's VRN appears as neither, or in the wrong role for the invoice type (e.g. self-billed 388), quarantine it. Recompute the direction split and compare to declared sales vs purchase boxes.
+- <strong>data_used:</strong> INVOICES header (VRNs, type name, self-billed flag); <code>VAT_registration_number</code>, <code>VAT_GROUP_REP_FLAG</code>; sales &amp; purchase boxes.
+- <strong>explains_gap:</strong> Yes → shifts amount between a sales box and a purchase box (both directions).
+- <strong>severity:</strong> High.
+- <strong>confirming_evidence:</strong> VRN checksum/registry validity and role vs invoice type; a corrected VRN reconciles the pair.
+- <strong>ai_assist:</strong> None (structured matching).</p>
+<p><strong><span id="rule-DAT-07" class="anchor"></span>DAT-07 — Simplified (B2C) vs standard (B2B) invoices mishandled</strong>
+- <strong>taxpayer_mistake:</strong> Simplified (reported) and standard (cleared) invoices are mixed, double-counted, or the wrong population builds the return — e.g. B2C summarised by daily Z-report while B2B is per-invoice, causing overlap or omission.
+- <strong>why_it_happens:</strong> Two channels with different obligations (real-time clearance vs 24h reporting); inconsistent aggregation.
+- <strong>detection:</strong> Read the invoice-type <code>name</code> to classify standard vs simplified and <code>CLEANCEENABLED</code>/<code>STATUSCODE</code> to confirm channel. Reconstruct each channel separately, union without double count, compare combined standard-rate output to <code>Standard_Rate_Sales_*</code>. Flag overlap (same sale in both) or a channel wholly absent.
+- <strong>data_used:</strong> INVOICES type name, CLEANCEENABLED, STATUSCODE; TAXSUBTOTAL; <code>IND_SECTOR</code> (retail B2C expectation); sales boxes.
+- <strong>explains_gap:</strong> Yes → Standard_Rate_Sales (output).
+- <strong>severity:</strong> Medium.
+- <strong>confirming_evidence:</strong> Channel counts vs sector norm; reconciliation after de-overlapping.
+- <strong>ai_assist:</strong> Read the free-text invoice <code>name</code> to disambiguate ambiguous type labels.</p>
+<p><strong><span id="rule-DAT-08" class="anchor"></span>DAT-08 — Foreign-currency invoices converted wrongly (<code>DocumentCurrencyCode</code> ≠ SAR)</strong> <em>(domestic-supply scope only; imports excluded — customs matter)</em>
+- <strong>taxpayer_mistake:</strong> For invoices billed in a foreign currency, the VAT feeding the return must be the SAR figure (<code>TaxCurrencyCode</code>=SAR); the taxpayer used the document-currency amount or an off-market FX rate.
+- <strong>why_it_happens:</strong> Manual FX at month-end rate instead of the tax-point rate; using <code>DocumentCurrencyCode</code> values directly.
+- <strong>detection:</strong> Select invoices where <code>DocumentCurrencyCode ≠ 'SAR'</code>; confirm <code>TaxCurrencyCode='SAR'</code> present (missing = compliance flag). Sum the SAR <code>TaxAmount</code>/<code>TaxableAmount</code> into the reconstruction. Compute implied FX = declared ÷ document-currency base; flag deviation from the tax-point reference rate beyond tolerance. <strong>Scope:</strong> applies to FATOORA-cleared domestic/export sales lines only. <strong>Box 8 imports are excluded</strong> — non-resident supplier, cleared through Bayan customs, not reconstructable from <code>DocumentCurrencyCode</code>; FX on imports is an RCM-02/03 customs-feed matter.
+- <strong>data_used:</strong> INVOICES DocumentCurrencyCode, TaxCurrencyCode; TAXTOTAL/TAXSUBTOTAL (SAR); domestic sales boxes and <code>Exports_*</code>.
+- <strong>explains_gap:</strong> Yes → affected domestic sales/export box (both directions). Not imports.
+- <strong>severity:</strong> Medium.
+- <strong>confirming_evidence:</strong> SAR <code>TaxCurrencyCode</code> amount vs declared; reference FX at tax point.
+- <strong>ai_assist:</strong> None.</p>
+<p><strong><span id="rule-DAT-09" class="anchor"></span>DAT-09 — Rounding differences mis-accumulated (<code>RoundingAmount</code>)</strong>
+- <strong>taxpayer_mistake:</strong> Per-invoice <code>RoundingAmount</code> is dropped, double-applied, or the return is built from rounded line totals rather than exact <code>TaxAmount</code>, producing a small systematic gap.
+- <strong>why_it_happens:</strong> Rounding half-up per invoice then re-summing; portal fields truncating decimals.
+- <strong>detection:</strong> Reconstruct VAT from exact <code>TAXSUBTOTAL.TaxAmount</code>; separately sum <code>TAXTOTAL.RoundingAmount</code>. If <code>declared − Σ exact ≈ Σ RoundingAmount</code> (within τ), the gap is explained and closed; if the residual exceeds Σ RoundingAmount, escalate to another DAT rule.
+- <strong>data_used:</strong> TAXTOTAL TaxAmount, RoundingAmount; return VAT boxes.
+- <strong>explains_gap:</strong> Yes → affected VAT box (both directions), typically closing a small residual.
+- <strong>severity:</strong> Low.
+- <strong>confirming_evidence:</strong> The residual matches accumulated <code>RoundingAmount</code>.
+- <strong>ai_assist:</strong> None.</p>
+<p><strong><span id="rule-DAT-10" class="anchor"></span>DAT-10 — Allowances/discounts not netted from the base (<code>AllowanceTotalAmount</code>)</strong>
+- <strong>taxpayer_mistake:</strong> Document-level discounts are ignored, so the declared base is gross while VAT was (correctly) charged on the net — the base box overstates by Σ <code>AllowanceTotalAmount</code> and no longer ties to VAT.
+- <strong>why_it_happens:</strong> Return built from gross order values; discount applied on the invoice but not in the summary that fed the portal.
+- <strong>detection:</strong> Reconstruct base as Σ <code>LEGALMONETARYTOTAL.TaxExclusiveAmount</code> (already net of <code>AllowanceTotalAmount</code>) and check against <code>Standard_Rate_Sales_Amount</code>. If declared base − reconstructed base ≈ Σ <code>AllowanceTotalAmount</code>, the discount was not netted. Cross-verify base × 15% = <code>Standard_Rate_Sales_VAT_Amount</code>.
+- <strong>data_used:</strong> LEGALMONETARYTOTAL TaxExclusiveAmount, AllowanceTotalAmount; base &amp; VAT sales boxes.
+- <strong>explains_gap:</strong> Yes → Standard_Rate_Sales base (output; VAT usually unaffected).
+- <strong>severity:</strong> Low (watch the case where VAT was also charged on gross).
+- <strong>confirming_evidence:</strong> The overstatement equals Σ allowances; the VAT box confirms whether tax followed net or gross.
+- <strong>ai_assist:</strong> None.</p>
+<p><strong><span id="rule-DAT-11" class="anchor"></span>DAT-11 — Prepayments (386) double-counted or timed wrong (<code>PrepaidAmount</code>)</strong>
+- <strong>taxpayer_mistake:</strong> VAT on a prepayment (386) is counted at receipt AND again in full on the final 388 without deducting <code>PrepaidAmount</code>, double-counting output; or the prepayment and settlement straddle periods and are mistimed.
+- <strong>why_it_happens:</strong> The final invoice should reduce its base by the already-taxed <code>PrepaidAmount</code>, but the return sums both gross.
+- <strong>detection:</strong> Identify 386 invoices and their matching 388 (same buyer VRN / contract reference). Expected output = Σ VAT(386) + Σ VAT(388 on base net of <code>PrepaidAmount</code>). Compare to declared standard-rate VAT; a residual ≈ VAT on Σ <code>PrepaidAmount</code> signals double count. Separately check 386 tax point vs <code>To_Date</code> for straddle.
+- <strong>data_used:</strong> INVOICES 386/388; LEGALMONETARYTOTAL PrepaidAmount; TAXTOTAL; sales boxes; period.
+- <strong>explains_gap:</strong> Yes → Standard_Rate_Sales (output; over- or under-statement).
+- <strong>severity:</strong> Medium.
+- <strong>confirming_evidence:</strong> The 386↔388 linkage and the <code>PrepaidAmount</code>; residual equals VAT on the prepayment.
+- <strong>ai_assist:</strong> None (uses structured references; AI only to read a contract note if the 386↔388 link is not explicit).</p>
+<p><strong><span id="rule-DAT-12" class="anchor"></span>DAT-12 — Manual portal data-entry errors (internal-consistency checks)</strong> <em>(consumes <code>box14_sign_mode</code>; pre-reconciliation sanity gate)</em>
+- <strong>taxpayer_mistake:</strong> Hand-typing the return introduces transpositions, decimal shifts, or misfooted totals — <code>Amount × rate ≠ VAT_Amount</code>, subtotals that don't add, or a wrong net line.
+- <strong>why_it_happens:</strong> Manual keying with no e-invoice import; fat-finger and copy-paste errors.
+- <strong>detection:</strong> Deterministic self-checks needing no e-invoice data: (a) each rated box <code>Amount × 0.15</code> (or <code>× 0.05</code> for <code>_5</code>) ≈ <code>VAT_Amount</code> — ratios near 0.015/1.5/0.05× flag a decimal shift/transposition; (b) <code>Total_VAT_Due</code> (Box13) = Σ output VAT boxes; (c) <code>Net_Due_VAT</code>/<code>Final_VAT_Due</code> (Box16) = <code>Total_VAT_Due</code> (Box13) + <code>Corrections_From_Previous_Period</code> (Box14) − <code>VAT_Credit</code> (Box15), <strong>with the Box14 sign taken from the shared <code>box14_sign_mode</code></strong> (not hard-coded); (d) recompute <code>Standard_Rate_Purchase_VAT_Amount</code>; each failing beyond τ.
+- <strong>data_used:</strong> all <code>_Amount</code>/<code>_VAT_Amount</code>/<code>_Adjustment</code> triplets, Box13/14/15/16, <code>_15</code>/<code>_5</code> splits; <code>box14_sign_mode</code>.
+- <strong>explains_gap:</strong> No (arithmetic — flags a keying error to correct before reconciliation is meaningful).
+- <strong>severity:</strong> Medium (High when the decimal shift is on <code>Total_VAT_Due</code>/<code>Final_VAT_Due</code>).
+- <strong>confirming_evidence:</strong> The failing identity pinpoints the box; recompute from DAT-01 reconstruction to confirm the intended value.
+- <strong>ai_assist:</strong> Read <code>NOTE_OID_ID</code>/comments for a flagged keying error; narrate which identity failed.</p>
+<hr />
+<h2>How the app uses this</h2>
+<ol>
+<li><strong>Deterministic detection first.</strong> Every rule's <code>detection</code> is arithmetic/date/presence logic over real fields. The engine runs DAT-12 (internal consistency) and COR-05 (correct return version) as <strong>gates</strong> before trusting any residual, then reconstructs the expected return (DAT-01/02) and lets the OUT/INP/RCM/COR/CMP explainers consume the residual. Shared machinery is factored once — the materiality gate <code>τ</code>, the RATE-TRANSITION detector (CMP-07), the recovery-ratio routine (INP-03 / RCM-05), and <code>box14_sign_mode</code> (COR / DAT-12) — so families that chain never disagree.</li>
+<li><strong>AI only reads and narrates.</strong> Claude is confined to language tasks: reading <code>Reason_For_Amendment</code> / <code>NOTE_OID_ID</code> / <code>LETTER_*</code> / item descriptions to classify a supply, surface a taxpayer's own stated explanation, or narrate a finding. AI never decides an amount; the deterministic reconciliation is always authoritative.</li>
+<li><strong>Human approves.</strong> Each finding carries <code>confirming_evidence</code> (internal evidence first, then a next-best RFI) so a KSA VAT auditor confirms or dismisses before any assessment. Data-availability preconditions (CP-MASTER counterparty dimension, BUYER-SOCKET buyer-keyed retrieval, customs/Bayan and AP/payment feeds) are surfaced on the rules that need them; where a feed is absent the rule runs <code>partial=true</code> and degrades to a registry/AP fallback rather than a false positive.</li>
+</ol>
+<p><strong>Backlog (named, not yet full-schema):</strong> margin/used-goods scheme (VAT on full value vs margin); transfer-of-going-concern treated as a taxable supply; cash-accounting scheme used above the SAR 40m eligibility ceiling.</p>
+<p>These rules populate <strong><code>config.rule_library</code></strong> (one row per code, with its <code>detection</code>, <code>data_used</code>, <code>explains_gap</code>, <code>severity</code>, and preconditions) and each maps to a <strong><code>ROOT_CAUSE_CODE</code></strong> on the audit case, so a confirmed finding writes back a stable root cause for <code>AUDIT_RESULT_TYPE</code>, <code>DIFF_TAX_AMT</code>, and <code>ACTION_TAKEN</code>.</p></div></section>
+</div>
+</main>
+<footer><div class="wrap"><span class="note">Detection is deterministic — the engine reconstructs the expected return from cleared e-invoices and names every difference; AI only reads and narrates free text; a human auditor approves every finding. These rules are the content behind <code>config.rule_library</code> and each maps to a <code>ROOT_CAUSE_CODE</code>.</span></div></footer>
+<script>
+(function(){
+  var root=document.documentElement;
+  // theme toggle: cycle system -> light -> dark
+  var btn=document.getElementById('themeBtn'), lbl=document.getElementById('themeLbl');
+  function label(){var t=root.getAttribute('data-theme');lbl.textContent=t?(t[0].toUpperCase()+t.slice(1)):'Theme';}
+  btn.addEventListener('click',function(){
+    var t=root.getAttribute('data-theme');
+    root.setAttribute('data-theme', t==='dark'?'light':(t==='light'?'':'dark'));
+    if(!root.getAttribute('data-theme'))root.removeAttribute('data-theme');
+    label();
+  });
+  label();
+
+  var q=document.getElementById('q'), cards=[].slice.call(document.querySelectorAll('.card'));
+  var facets={family:new Set(),sev:new Set(),gap:new Set()};
+  var shown=document.getElementById('shown'), empty=document.getElementById('empty');
+  var clearBtns=[document.getElementById('clear'),document.getElementById('clear2')];
+
+  function apply(){
+    var term=(q.value||'').trim().toLowerCase();
+    var n=0;
+    cards.forEach(function(c){
+      var ok=true;
+      if(term && c.getAttribute('data-text').indexOf(term)<0) ok=false;
+      if(ok && facets.family.size && !facets.family.has(c.getAttribute('data-family'))) ok=false;
+      if(ok && facets.sev.size && !facets.sev.has(c.getAttribute('data-sev'))) ok=false;
+      if(ok && facets.gap.size && !facets.gap.has(c.getAttribute('data-gap'))) ok=false;
+      c.style.display=ok?'':'none'; if(ok)n++;
+    });
+    shown.textContent=n;
+    empty.hidden=n>0;
+    var active=term||facets.family.size||facets.sev.size||facets.gap.size;
+    clearBtns.forEach(function(b){if(b)b.hidden=!active;});
+  }
+  q.addEventListener('input',apply);
+  document.querySelectorAll('.chip').forEach(function(ch){
+    ch.addEventListener('click',function(){
+      var f=ch.getAttribute('data-facet'), v=ch.getAttribute('data-val');
+      var on=ch.getAttribute('aria-pressed')==='true';
+      ch.setAttribute('aria-pressed', on?'false':'true');
+      if(on)facets[f].delete(v); else facets[f].add(v);
+      apply();
+    });
+  });
+  function clearAll(){
+    q.value='';
+    facets={family:new Set(),sev:new Set(),gap:new Set()};
+    document.querySelectorAll('.chip').forEach(function(c){c.setAttribute('aria-pressed','false');});
+    apply();
+  }
+  clearBtns.forEach(function(b){if(b)b.addEventListener('click',clearAll);});
+})();
+</script>
