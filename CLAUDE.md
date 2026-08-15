@@ -57,18 +57,53 @@ React + TypeScript (Vite) · FastAPI · PostgreSQL (schemas `core` + `recon`).
 
 ```
 backend/app/
-  recon_engine.py     # deterministic reconstruction + bridge (output & input VAT)
-  priority.py         # composite case prioritization (exposure/deadline/history/quick-win)
-  api/routes.py       # FastAPI endpoints
-  models/             # SQLAlchemy models: core.py, config_tables.py, recon.py
-  llm/                # the ONLY Claude boundary: service, prompts, verify, schemas
-  seed/               # scenarios.py (demo taxpayers) + seed.py (drop/create/load)
+  recon_engine.py      # deterministic reconstruction + bridge (output & input VAT)
+  reconciling_items.py # declarative registry of the bridge's lines — wire a rule = one entry
+  rule_taxonomy.py     # explanation/mistake/risk + precedence stage + difference reason codes
+  scope.py             # what this PoC reconciles, and what it deliberately leaves out
+  priority.py          # composite case prioritization (exposure/deadline/history/quick-win)
+  api/routes.py        # FastAPI endpoints
+  models/              # SQLAlchemy models: core.py, config_tables.py, recon.py
+  llm/                 # the ONLY Claude boundary: service, prompts, verify, schemas
+  seed/                # scenarios.py (demo taxpayers) + seed.py (drop/create/load)
 frontend/src/
-  pages/              # Overview, Reconciliation, Rules
-  components/         # AI panels, bridge, taxpayer-response + letter reader
-  api.ts, ai/         # typed API + SSE streaming helpers
-docs/                 # VAT Mistakes Rulebook (65 rules) + rendered page
+  pages/               # Overview, Reconciliation, Rules
+  components/          # AI panels, bridge, taxpayer-response + letter reader
+  api.ts, ai/          # typed API + SSE streaming helpers
+docs/                  # VAT Mistakes Rulebook (65 rules) + rendered page
+portal.html            # standalone no-backend build of the workbench (see below)
 ```
+
+## The rule taxonomy (do not collapse this back)
+
+The rulebook's 65 entries are three different kinds of object, and the engine
+depends on the distinction:
+
+- **explanation** — a legitimate reason the return differs from the e-invoices
+  (credit notes, tax-point timing). Becomes a **bridge line**; reduces the residual.
+- **mistake** — a taxpayer error. Becomes a **finding**.
+- **risk** — a behavioural or data-quality signal. Feeds **prioritisation only**,
+  and must never draw a bridge line.
+
+Each rule also carries a `stage` (its place in the population → identity → status
+→ tax-point → category → adjustment → aggregation → timing → materiality → risk
+precedence) and a `reason_code` describing *which class of difference* it is about.
+Reason codes describe the phenomenon; `kind` carries the verdict.
+
+Bridge lines are declared in `reconciling_items.py`, not hard-coded in the engine.
+**Wiring a rule into the live engine means appending one `ReconcilingItem`** — the
+engine, the API's `wired` flag and the UI's "● live" badge all follow from it.
+Guarded by `backend/tests/test_rules.py`.
+
+## The standalone portal
+
+`portal.html` is a single self-contained build of the workbench — no backend, no
+database, no build step. It ports `theme.css` verbatim and re-implements the
+deterministic core in JavaScript over the seeded demo data, so the bridge, the
+rulebook toggles and the taxpayer-response loop still recompute in the browser.
+Its AI panels show the same deterministic fallbacks the app renders with no API
+key. If you change the engine, the seed data or the rule taxonomy, regenerate it —
+the JS port is validated field-by-field against the Python engine's output.
 
 ## Running locally
 

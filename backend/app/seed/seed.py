@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from ..db import engine, create_schemas, SessionLocal, Base
 from ..models import Rule, Assumption, CodeDictionary
+from ..rule_taxonomy import REASON_CODES
 from .rulebook_loader import parse_rules
 from . import scenarios
 
@@ -51,10 +52,17 @@ def run() -> None:
             db.add(CodeDictionary(code_set=cs, code=code, label=label,
                                   meaning=meaning, is_placeholder=not real))
 
+        # difference reason codes (timing / scope / document / accounting / risk).
+        # Our reading of the difference taxonomy, not a published ZATCA code list.
+        for code, (group, label) in REASON_CODES.items():
+            db.add(CodeDictionary(code_set="reason_code", code=code, label=label,
+                                  meaning=f"{group.capitalize()} difference", is_placeholder=True))
+
         scenarios.build_all(db)
         db.commit()
         print(f"Seeded {len(rules)} rules, {len(ASSUMPTIONS)} assumptions, "
-              f"{len(CODE_DICTIONARY)} codes, and demo cases (finding + clean).")
+              f"{len(CODE_DICTIONARY)} codes, {len(REASON_CODES)} reason codes, "
+              f"and demo cases (finding + clean).")
     except Exception:
         db.rollback()
         raise

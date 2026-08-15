@@ -4,6 +4,8 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+from ..rule_taxonomy import classify
+
 RULEBOOK = Path(__file__).resolve().parents[3] / "docs" / "VAT-Mistakes-Rulebook.md"
 
 
@@ -41,14 +43,17 @@ def parse_rules(path: Path = RULEBOOK) -> list[dict]:
                 code = cells[0]
                 if not re.match(r"^[A-Z]{2,4}-\d", code):
                     continue
+                family, gap_band = cells[2], _gap_band(cells[3])
                 rules.append({
                     "code": code,
                     "title": cells[1],
-                    "family": cells[2],
+                    "family": family,
                     "explains_gap": cells[3].replace("->", "→"),
-                    "gap_band": _gap_band(cells[3]),
+                    "gap_band": gap_band,
                     "severity": cells[4],
                     "severity_band": _sev_band(cells[4]),
                     "root_cause_code": code,  # placeholder until ZATCA code list arrives
+                    # explanation / mistake / risk, plus precedence stage and difference class
+                    **classify(code, family, gap_band),
                 })
     return rules

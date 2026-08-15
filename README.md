@@ -17,11 +17,36 @@ an auditor to approve.
 
 ## Repo layout
 ```
-backend/    FastAPI app, data model, seed data
-frontend/   React (Vite) ZATCA-themed workbench
-docs/       VAT Mistakes Rulebook (markdown + rendered page)
-tools/      build scripts (rulebook page generator)
+backend/     FastAPI app, data model, seed data
+frontend/    React (Vite) ZATCA-themed workbench
+docs/        VAT Mistakes Rulebook (markdown + rendered page)
+tools/       build scripts (rulebook page generator)
+portal.html  standalone no-backend build — open it in a browser, nothing to install
 ```
+
+## Scope
+
+A VAT return is **not** the e-invoice population restated. It is the
+tax-point-adjusted e-invoice population *plus* populations that carry no domestic
+e-invoice at all (imports, reverse charge, exempt supplies), *plus* adjustments,
+prior-period corrections and timing movements. Any design resting on
+`Σ invoices(period) == return(period)` is wrong by construction.
+
+This PoC reconstructs one slice of that picture:
+
+- **In scope** — standard-rated sales (output VAT) and standard-rated purchases
+  (input VAT), one tax period, one return version, four wired explanations
+  (credit notes and tax-point straddle timing on both boxes) plus
+  auditor-confirmed taxpayer evidence.
+- **Out of scope** — imports, reverse charge, exempt/zero-rated supplies, VAT
+  groups and branches, cash accounting, prior-period corrections and amendments,
+  bad debts, partial exemption, B2C aggregation, rounding tolerance, buyer-side
+  supplier matching, and rolling multi-period reconciliation.
+
+Each exclusion is tagged with the reason code that would carry it, so the boundary
+is a stated design decision with a named home in the taxonomy. The live list is
+served from `GET /api/scope` and shown on the Overview page — `backend/app/scope.py`
+is the single source, so the README, the API and the UI cannot drift apart.
 
 ## Phase 0 — Foundation (this milestone)
 Data model + config + seed data + a themed app shell. Reconstruction/bridge/AI features land in later phases.

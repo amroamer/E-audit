@@ -8,6 +8,9 @@ from ..db import get_db
 from ..models import Taxpayer, VatReturn, Invoice, AuditCase, Rule, TaxpayerResponse, EventLog
 from ..recon_engine import reconcile_case
 from ..priority import score_case
+from ..reconciling_items import wired_codes
+from ..rule_taxonomy import REASON_CODES, STAGES, KINDS
+from ..scope import scope_card
 from ..llm.service import llm
 from ..config import settings
 
@@ -34,6 +37,12 @@ def health(db: Session = Depends(get_db)):
 
 @router.get("/rules")
 def list_rules(db: Session = Depends(get_db)):
+    """The rule library, each row carrying its taxonomy and whether the engine can fire it.
+
+    `wired` comes from the reconciling-item registry rather than a hard-coded list in the
+    UI, so a rule added to the registry is badged live without a frontend change.
+    """
+    wired = wired_codes()
     rows = db.scalars(select(Rule).order_by(Rule.code)).all()
     return [
         {
@@ -41,9 +50,32 @@ def list_rules(db: Session = Depends(get_db)):
             "explains_gap": r.explains_gap, "gap_band": r.gap_band,
             "severity": r.severity, "severity_band": r.severity_band,
             "root_cause_code": r.root_cause_code, "enabled": r.enabled,
+            "rule_kind": r.rule_kind, "stage": r.stage,
+            "reason_code": r.reason_code,
+            "reason_label": REASON_CODES.get(r.reason_code, ("", ""))[1],
+            "wired": r.code in wired,
         }
         for r in rows
     ]
+
+
+@router.get("/reason-codes")
+def list_reason_codes():
+    """The difference taxonomy: why a return may legitimately differ from the e-invoices."""
+    return {
+        "kinds": list(KINDS),
+        "stages": list(STAGES),
+        "codes": [
+            {"code": code, "group": group, "label": label}
+            for code, (group, label) in REASON_CODES.items()
+        ],
+    }
+
+
+@router.get("/scope")
+def scope():
+    """What this PoC reconciles, and what it deliberately leaves out."""
+    return scope_card()
 
 
 class RulePatch(BaseModel):

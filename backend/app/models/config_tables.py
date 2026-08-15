@@ -25,6 +25,11 @@ class Rule(Base):
     gap_band: Mapped[str] = mapped_column(String(10), default="")     # yes/partial/no
     severity: Mapped[str] = mapped_column(String(60), default="")
     severity_band: Mapped[str] = mapped_column(String(10), default="")  # high/medium/low
+    # taxonomy (app/rule_taxonomy.py): what kind of object this rule is, where it sits in the
+    # evaluation precedence, and which class of difference it describes
+    rule_kind: Mapped[str] = mapped_column(String(12), default="", index=True)  # explanation/mistake/risk
+    stage: Mapped[str] = mapped_column(String(14), default="")        # population…risk
+    reason_code: Mapped[str] = mapped_column(String(4), default="")   # T01, S04, D03, A01, R10…
     confirming_evidence: Mapped[str] = mapped_column(Text, default="")
     ai_assist: Mapped[str] = mapped_column(Text, default="")
     root_cause_code: Mapped[str] = mapped_column(String(30), default="")

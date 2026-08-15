@@ -29,6 +29,8 @@ export interface CaseRow {
   priority: PriorityScore;
 }
 
+export type RuleKind = "explanation" | "mistake" | "risk";
+
 export interface RuleRow {
   code: string;
   family: string;
@@ -39,6 +41,29 @@ export interface RuleRow {
   severity_band: string;
   root_cause_code: string;
   enabled: boolean;
+  /** what kind of object this rule is: explains a difference, accuses a mistake, or flags risk */
+  rule_kind: RuleKind;
+  /** where it sits in the evaluation precedence (population → … → risk) */
+  stage: string;
+  /** which class of difference it describes (T/S/D/A/R taxonomy) */
+  reason_code: string;
+  reason_label: string;
+  /** true when the live reconciliation engine can draw a bridge line for it */
+  wired: boolean;
+}
+
+export interface ScopeItem {
+  item: string;
+  detail?: string;
+  note?: string;
+  reason_code?: string;
+  reason_label?: string;
+}
+export interface ScopeCard {
+  headline: string;
+  in_scope: ScopeItem[];
+  out_of_scope: ScopeItem[];
+  tax_point_note: string;
 }
 
 export interface Health {
@@ -64,6 +89,7 @@ export const listCases = () => getJSON<CaseRow[]>("/cases");
 export const listRules = () => getJSON<RuleRow[]>("/rules");
 export const getHealth = () => getJSON<Health>("/health");
 export const getOverview = () => getJSON<ExecOverview>("/overview");
+export const getScope = () => getJSON<ScopeCard>("/scope");
 
 export const reseedDemo = async (): Promise<{ status: string; message: string }> => {
   const r = await fetch(BASE + "/admin/reseed", { method: "POST" });

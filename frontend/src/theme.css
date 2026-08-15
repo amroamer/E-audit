@@ -243,4 +243,23 @@ td .sub{font-size:11.5px;color:var(--faint);margin-top:2px}
 .resp-divider::before,.resp-divider::after{content:"";flex:1;height:1px;background:var(--line)}
 .cursor{color:var(--brand);animation:blink 1s steps(2) infinite}
 @keyframes blink{50%{opacity:0}}
+/* rule taxonomy — explanation / mistake / risk */
+.card-kind{display:flex;flex-wrap:wrap;align-items:center;gap:7px;margin-top:-2px}
+.kindtag{font-size:10.5px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;padding:2px 7px;border-radius:6px}
+.kindtag.kind-explanation{background:var(--low-bg);color:var(--low)}
+.kindtag.kind-mistake{background:var(--high-bg);color:var(--high)}
+.kindtag.kind-risk{background:var(--med-bg);color:var(--med)}
+.stagetag{font-size:10.5px;color:var(--faint);text-transform:uppercase;letter-spacing:.5px}
+.chip.on.kind-explanation{background:var(--low);border-color:var(--low)}
+.chip.on.kind-mistake{background:var(--high);border-color:var(--high)}
+.chip.on.kind-risk{background:var(--med);border-color:var(--med)}
+/* scope card */
+.scope-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:26px;margin:14px 0 16px}
+.scope-col h4{font-size:11.5px;text-transform:uppercase;letter-spacing:.6px;color:var(--brand-deep);margin:0 0 10px}
+:root[data-theme="dark"] .scope-col h4{color:var(--brand)}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]) .scope-col h4{color:var(--brand)}}
+.scope-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:11px}
+.scope-list li{font-size:13px;line-height:1.45}
+.scope-list b{font-weight:650}
+.scope-list .sub{display:block;color:var(--muted);font-size:12.5px;margin-top:3px;line-height:1.5}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}.modal-overlay,.modal,.cursor{animation:none!important}}

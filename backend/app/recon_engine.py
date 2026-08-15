@@ -18,6 +18,7 @@ from .models import (
     CaseRecon, RebuiltBox, BridgeLine, Residual, Conclusion, EventLog,
     TaxpayerResponse,
 )
+from .reconciling_items import BOX_INPUT, BOX_OUTPUT, CREDIT_NOTE, specs_for
 
 MATERIALITY_FLOOR = 1000.0   # SAR
 MATERIALITY_PCT = 0.005      # 0.5% of the compared box
@@ -53,6 +54,39 @@ def _rule_on(db: Session, code: str) -> bool:
     return bool(r and r.enabled)
 
 
+def _s_tax(inv: Invoice) -> float:
+    """Standard-rated VAT on an invoice (tax category S at 15%)."""
+    return sum(float(st.tax_amount) for st in inv.subtotals if st.category == "S" and st.rate == 15)
+
+
+def _apply_specs(db: Session, box: str, cleared: list[Invoice], period_to) -> tuple[list, dict]:
+    """Evaluate the declarative reconciling-item registry for one box.
+
+    Returns the bridge items [(rule, label, amount)] and their drill-down details.
+    A spec contributes a line only when its rule is enabled in the library and the
+    invoices it matches carry a non-trivial amount — so toggling a rule in the
+    Rulebook page adds or removes exactly one line from the bridge.
+    """
+    items: list[tuple[str, str, float]] = []
+    details: dict[str, dict] = {}
+    for spec in specs_for(box):
+        rows = [inv for inv in cleared if spec.match(inv, period_to)]
+        total = round(spec.sign * sum(_s_tax(inv) for inv in rows), 2)
+        details[spec.rule] = {
+            "type": "rule",
+            "rule": _rinfo(db, spec.rule),
+            "reason_code": spec.reason_code,
+            "reason_label": spec.reason_label,
+            "note": spec.note,
+            "count": len(rows),
+            "total": total,
+            "invoices": [_inv_row(inv, _s_tax(inv)) for inv in rows],
+        }
+        if abs(total) > 0.005 and _rule_on(db, spec.rule):
+            items.append((spec.rule, spec.label, total))
+    return items, details
+
+
 def _rinfo(db: Session, code: str) -> dict:
     r = db.get(Rule, code)
     if not r:
@@ -82,34 +116,17 @@ def _reconstruct_input(db: Session, tp, ret: VatReturn | None, period_to) -> dic
     invs = db.scalars(
         select(Invoice).where(Invoice.taxpayer_id == tp.id, Invoice.direction == "purchase")
     ).all()
-    gross = credit_notes = timing = 0.0
-    gross_rows: list[dict] = []
-    cn_rows: list[dict] = []
-    timing_rows: list[dict] = []
-    for inv in invs:
-        if inv.status_code not in ("cleared", "reported"):
-            continue
-        s_tax = sum(float(st.tax_amount) for st in inv.subtotals if st.category == "S" and st.rate == 15)
-        row = _inv_row(inv, s_tax)
-        if inv.invoice_type_code == 381:
-            credit_notes += s_tax
-            cn_rows.append(row)
-        else:
-            gross += s_tax
-            gross_rows.append(row)
-            if inv.delivery_date and inv.delivery_date > period_to:
-                timing += s_tax
-                timing_rows.append(row)
-    gross = round(gross, 2)
-    credit_notes = round(credit_notes, 2)
-    timing = round(timing, 2)
+    cleared = [i for i in invs if i.status_code in ("cleared", "reported")]
+
+    # The population split is structural, not a rule: a credit note is never part of the
+    # reconstructed gross, so disabling COR-02 drops the explanation without restating
+    # the reconstruction.
+    gross_rows = [_inv_row(i, _s_tax(i)) for i in cleared if i.invoice_type_code != CREDIT_NOTE]
+    cn_rows = [_inv_row(i, _s_tax(i)) for i in cleared if i.invoice_type_code == CREDIT_NOTE]
+    gross = round(sum(_s_tax(i) for i in cleared if i.invoice_type_code != CREDIT_NOTE), 2)
     apparent_gap = round(gross - declared, 2)
 
-    items: list[tuple[str, str, float]] = []
-    if abs(credit_notes) > 0.005 and _rule_on(db, "COR-02"):
-        items.append(("COR-02", "Supplier credit notes (381) reducing recoverable input", credit_notes))
-    if abs(timing) > 0.005 and _rule_on(db, "INP-09"):
-        items.append(("INP-09", "Input claimed in the wrong / a late period", round(-timing, 2)))
+    items, explain_detail = _apply_specs(db, BOX_INPUT, cleared, period_to)
 
     explained_signed = round(sum(a for _, _, a in items), 2)
     adjusted = round(gross + explained_signed, 2)
@@ -130,20 +147,6 @@ def _reconstruct_input(db: Session, tp, ret: VatReturn | None, period_to) -> dic
         "formula": "Σ TAXSUBTOTAL (tax category S @ 15%) over cleared purchase tax invoices",
         "note": "Standard-rated input VAT rebuilt from the taxpayer's cleared purchase e-invoices.",
         "count": len(gross_rows), "total": gross, "invoices": gross_rows,
-    }
-    explain_detail = {
-        "COR-02": {
-            "type": "rule", "rule": _rinfo(db, "COR-02"),
-            "note": "Supplier credit notes (type 381) reduce recoverable input VAT and are already "
-                    "reflected in the declared figure.",
-            "count": len(cn_rows), "total": credit_notes, "invoices": cn_rows,
-        },
-        "INP-09": {
-            "type": "rule", "rule": _rinfo(db, "INP-09"),
-            "note": "Purchase invoices delivered in the next period — the input belongs to the "
-                    "following return.",
-            "count": len(timing_rows), "total": round(-timing, 2), "invoices": timing_rows,
-        },
     }
     declared_detail = {
         "type": "declared", "box_code": "standard_rate_purchase", "box_label": "Standard-rated purchases",
@@ -180,7 +183,7 @@ def _reconstruct_input(db: Session, tp, ret: VatReturn | None, period_to) -> dic
                    "label": "Unexplained residual", "amount": residual, "running": running,
                    "detail": residual_detail})
 
-    considered = len([i for i in invs if i.status_code in ("cleared", "reported")])
+    considered = len(cleared)
     return {
         "box": "Standard-rated purchases (input VAT)",
         "declared": declared, "reconstructed_gross": gross, "apparent_gap": apparent_gap,
@@ -206,51 +209,23 @@ def reconcile_case(db: Session, case_id: str, *, persist: bool = True) -> dict:
     dbox = _declared_box(ret)
     declared = round(float(dbox.vat_amount) if dbox else 0.0, 2)
 
-    def rinfo(code: str):
-        r = db.get(Rule, code)
-        if not r:
-            return {"code": code}
-        return {"code": r.code, "family": r.family, "title": r.title,
-                "explains_gap": r.explains_gap, "severity": r.severity}
-
-    def _enabled(code: str) -> bool:
-        # a rule only fires if it exists in the library and is enabled (deleted/disabled → skipped)
-        r = db.get(Rule, code)
-        return bool(r and r.enabled)
-
     # --- reconstruct standard-rated output VAT from cleared sale e-invoices ----------
     invs = db.scalars(
         select(Invoice).where(Invoice.taxpayer_id == tp.id, Invoice.direction == "sale")
     ).all()
-    gross_pos = credit_notes = timing = 0.0
-    gross_rows: list[dict] = []
-    cn_rows: list[dict] = []
-    timing_rows: list[dict] = []
-    for inv in invs:
-        if inv.status_code not in ("cleared", "reported"):
-            continue
-        s_tax = sum(float(st.tax_amount) for st in inv.subtotals if st.category == "S" and st.rate == 15)
-        row = _inv_row(inv, s_tax)
-        if inv.invoice_type_code == 381:          # credit note
-            credit_notes += s_tax                 # negative
-            cn_rows.append(row)
-        else:                                     # tax invoice (388) etc.
-            gross_pos += s_tax
-            gross_rows.append(row)
-            if inv.delivery_date and inv.delivery_date > case.period_to:
-                timing += s_tax                   # supplied in the next period
-                timing_rows.append(row)
-    gross_pos = round(gross_pos, 2)
-    credit_notes = round(credit_notes, 2)
-    timing = round(timing, 2)
+    cleared = [i for i in invs if i.status_code in ("cleared", "reported")]
+
+    # Population split is structural: credit notes (381) are never part of the reconstructed
+    # gross, tax invoices (388) etc. are.
+    gross_rows = [_inv_row(i, _s_tax(i)) for i in cleared if i.invoice_type_code != CREDIT_NOTE]
+    cn_rows = [_inv_row(i, _s_tax(i)) for i in cleared if i.invoice_type_code == CREDIT_NOTE]
+    gross_pos = round(sum(_s_tax(i) for i in cleared if i.invoice_type_code != CREDIT_NOTE), 2)
     apparent_gap = round(gross_pos - declared, 2)
 
     # --- bridge: reconciling items that move the reconstruction toward the return -----
-    items: list[tuple[str, str, float]] = []
-    if abs(credit_notes) > 0.005 and _enabled("COR-01"):
-        items.append(("COR-01", "Credit notes (381) already applied in the return", credit_notes))
-    if abs(timing) > 0.005 and _enabled("OUT-07"):
-        items.append(("OUT-07", "Clearance lag — invoices delivered in the next period", round(-timing, 2)))
+    # Declared in app/reconciling_items.py, not hard-coded here — wiring a new rule into the
+    # live engine is one entry in that registry.
+    items, explain_detail = _apply_specs(db, BOX_OUTPUT, cleared, case.period_to)
 
     # taxpayer-supplied evidence (auditor-confirmed SAR amounts) folds in as RESP-xx lines
     responses = db.scalars(
@@ -281,20 +256,6 @@ def reconcile_case(db: Session, case_id: str, *, persist: bool = True) -> dict:
         "formula": "Σ TAXSUBTOTAL (tax category S @ 15%) over cleared sale tax invoices",
         "note": "Standard-rated output VAT rebuilt from the taxpayer's cleared e-invoices.",
         "count": len(gross_rows), "total": gross_pos, "invoices": gross_rows,
-    }
-    explain_detail = {
-        "COR-01": {
-            "type": "rule", "rule": rinfo("COR-01"),
-            "note": "These credit notes (type 381) are already reflected in the taxpayer's declared "
-                    "figure, so they are removed from the reconstructed total to avoid double-counting.",
-            "count": len(cn_rows), "total": credit_notes, "invoices": cn_rows,
-        },
-        "OUT-07": {
-            "type": "rule", "rule": rinfo("OUT-07"),
-            "note": "Issued within the period but delivered in the next period (tax-point / clearance "
-                    "lag) — the supply belongs to the following return.",
-            "count": len(timing_rows), "total": round(-timing, 2), "invoices": timing_rows,
-        },
     }
     for r in responses:
         explain_detail[r.code] = {

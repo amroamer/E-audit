@@ -1,8 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { listRules, setRuleEnabled, deleteRule, type RuleRow } from "../api";
 
-// rules currently wired into the live reconciliation engine — toggling these changes a case's bridge
-const WIRED = new Set(["COR-01", "OUT-07"]);
+// The rulebook catalogues three different kinds of object under one roof; splitting them is
+// what stops an "explanation" (a legitimate reason the return differs) being read as a finding.
+const KIND = [
+  { v: "explanation", l: "Explains a difference" },
+  { v: "mistake", l: "Taxpayer mistake" },
+  { v: "risk", l: "Risk signal" },
+];
 
 const SEV = [
   { v: "high", l: "High" },
@@ -22,6 +27,7 @@ export default function Rules() {
   const [fam, setFam] = useState<string | null>(null);
   const [sev, setSev] = useState<string | null>(null);
   const [gap, setGap] = useState<string | null>(null);
+  const [kind, setKind] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
   useEffect(() => {
@@ -51,11 +57,12 @@ export default function Rules() {
   const families = useMemo(() => [...new Set(rules.map((r) => r.family))], [rules]);
 
   const shown = rules.filter((r) => {
-    const hay = `${r.code} ${r.title} ${r.family} ${r.explains_gap}`.toLowerCase();
+    const hay = `${r.code} ${r.title} ${r.family} ${r.explains_gap} ${r.reason_code} ${r.reason_label}`.toLowerCase();
     if (q && !hay.includes(q.toLowerCase())) return false;
     if (fam && r.family !== fam) return false;
     if (sev && r.severity_band !== sev) return false;
     if (gap && r.gap_band !== gap) return false;
+    if (kind && r.rule_kind !== kind) return false;
     return true;
   });
 
@@ -63,6 +70,7 @@ export default function Rules() {
     set(cur === v ? null : v);
 
   const active = rules.filter((r) => r.enabled).length;
+  const wired = rules.filter((r) => r.wired).length;
 
   return (
     <div className="page">
@@ -108,8 +116,18 @@ export default function Rules() {
                 {g.l}
               </button>
             ))}
+            {KIND.map((k) => (
+              <button
+                key={k.v}
+                className={"chip kind-" + k.v + (kind === k.v ? " on" : "")}
+                onClick={() => toggle(kind, k.v, setKind)}
+                title="What kind of object this rule is — an explanation, a mistake, or a risk signal"
+              >
+                {k.l}
+              </button>
+            ))}
             <span className="rescount">
-              {active} active · {shown.length} of {rules.length} shown
+              {active} active · {wired} wired · {shown.length} of {rules.length} shown
             </span>
           </div>
 
@@ -121,6 +139,17 @@ export default function Rules() {
                   <span className="fam">{r.family}</span>
                 </div>
                 <h3>{r.title}</h3>
+                <div className="card-kind">
+                  <span className={"kindtag kind-" + r.rule_kind}>{r.rule_kind}</span>
+                  {r.reason_code && (
+                    <span className="rc" title={r.reason_label}>
+                      {r.reason_code}
+                    </span>
+                  )}
+                  <span className="stagetag" title="Stage in the evaluation precedence">
+                    {r.stage}
+                  </span>
+                </div>
                 <div className="card-badges">
                   <span className={"badge gap-" + r.gap_band}>
                     {r.gap_band === "no" ? "No direct gap" : r.explains_gap}
@@ -140,7 +169,7 @@ export default function Rules() {
                     <span className="switch-label">{r.enabled ? "Active" : "Disabled"}</span>
                   </label>
                   <div className="foot-right">
-                    {WIRED.has(r.code) && (
+                    {r.wired && (
                       <span className="live-badge" title="Wired into the live reconciliation engine">
                         ● live
                       </span>

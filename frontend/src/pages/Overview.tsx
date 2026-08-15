@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { listCases, getOverview, reseedDemo, type CaseRow, type ExecOverview } from "../api";
+import { listCases, getOverview, getScope, reseedDemo, type CaseRow, type ExecOverview, type ScopeCard } from "../api";
 
 const money = (n: number) =>
   n >= 1e6 ? `SAR ${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `SAR ${Math.round(n / 1e3)}K` : `SAR ${Math.round(n)}`;
@@ -8,6 +8,7 @@ const money = (n: number) =>
 export default function Overview() {
   const [cases, setCases] = useState<CaseRow[]>([]);
   const [ov, setOv] = useState<ExecOverview | null>(null);
+  const [scope, setScope] = useState<ScopeCard | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [resetState, setResetState] = useState<"idle" | "confirm" | "busy">("idle");
   const nav = useNavigate();
@@ -15,6 +16,7 @@ export default function Overview() {
   const load = () => {
     listCases().then(setCases).catch((e) => setErr(String(e)));
     getOverview().then(setOv).catch(() => {});
+    getScope().then(setScope).catch(() => {});
   };
   useEffect(load, []);
 
@@ -161,6 +163,48 @@ export default function Overview() {
           </div>
         )}
       </div>
+
+      {scope && (
+        <div className="panel">
+          <div className="panel-head">
+            <h2>What this PoC covers</h2>
+            <span className="muted">and what it deliberately leaves out</span>
+          </div>
+          <div className="ai-body">
+            <p className="detail-note">{scope.headline}</p>
+            <div className="scope-grid">
+              <div className="scope-col">
+                <h4>In scope</h4>
+                <ul className="scope-list">
+                  {scope.in_scope.map((s) => (
+                    <li key={s.item}>
+                      <b>{s.item}</b>
+                      <span className="sub">{s.detail}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <div className="scope-col">
+                <h4>Out of scope — and where each one belongs</h4>
+                <ul className="scope-list">
+                  {scope.out_of_scope.map((s) => (
+                    <li key={s.item}>
+                      <span className="rc" title={s.reason_label}>
+                        {s.reason_code}
+                      </span>{" "}
+                      <b>{s.item}</b>
+                      <span className="sub">{s.note}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+            <p className="detail-note" style={{ margin: 0 }}>
+              {scope.tax_point_note}
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
