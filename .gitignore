@@ -21,6 +21,10 @@ dist-ssr/
 .vite/
 *.tsbuildinfo
 
+# Local dev database (SQLite fallback used by tools/dev.py)
+backend/.data/
+*.db
+
 # Build / coverage
 build/
 coverage/

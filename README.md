@@ -52,22 +52,45 @@ is the single source, so the README, the API and the UI cannot drift apart.
 Data model + config + seed data + a themed app shell. Reconstruction/bridge/AI features land in later phases.
 
 ### Run
+
 ```bash
-# 1. database
-docker compose up -d db
+# 1. backend — no Docker, no Postgres, seeds itself on first run
+python -m venv .venv && . .venv/bin/activate    # Scripts/activate on Windows
+pip install -r backend/requirements.txt
+python tools/dev.py                             # http://127.0.0.1:8000  (docs at /docs)
 
-# 2. backend
-cd backend
-python -m venv .venv && . .venv/Scripts/activate   # Windows; use bin/activate on *nix
-pip install -r requirements.txt
-python -m app.seed.seed            # create schemas/tables + load rules + seed demo cases
-uvicorn app.main:app --reload      # http://localhost:8000  (docs at /docs)
-
-# 3. frontend
-cd ../frontend
-npm install
-npm run dev                        # http://localhost:5173
+# 2. frontend
+cd frontend && npm install && npm run dev       # http://localhost:5174
 ```
+
+`tools/dev.py` loads `.env`, falls back to a local SQLite file under `backend/.data/`,
+seeds the demo data if the database is empty, and prints whether the AI layer is live.
+Use `--reseed` to reload the demo data and `--check` to print status and exit.
+
+### Turning the AI on
+
+Without a key everything works — the AI panels render labelled deterministic drafts.
+To see Claude write the prose:
+
+```bash
+cp .env.example .env        # then paste your key into ANTHROPIC_API_KEY
+python tools/dev.py --check # should print: ai  LIVE
+```
+
+The badges then change from **∑ Deterministic (no AI)** to **✓ Figures verified**. What
+does *not* change is where the numbers come from: Claude emits no digits at all, only
+placeholder tokens that the engine substitutes with its own values, and every sentence is
+checked before display. A draft containing a fabricated figure — or the right figures with
+the wrong verdict — is rejected and replaced by the deterministic draft with a badge saying
+so. `backend/tests/test_llm_path.py` proves each of those paths with the SDK stubbed.
+
+Two things to know: the standalone `portal.html` can never show live AI, because it is a
+static file with no server and no key; and the hosted model is called only while
+`EAUDIT_DATA_IS_SYNTHETIC` is true. Production points `EAUDIT_ANTHROPIC_BASE_URL` at an
+in-tenant gateway — the single swap point, with no call-site change.
+
+To use Postgres instead of SQLite, run `docker compose up -d db` and set
+`EAUDIT_DATABASE_URL` in `.env`.
 
 ### The Rulebook
 `docs/VAT-Mistakes-Rulebook.md` is the canonical catalogue of taxpayer VAT mistakes the agent
