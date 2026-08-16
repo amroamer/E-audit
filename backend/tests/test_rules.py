@@ -5,7 +5,7 @@ Pure functions only — no database, so these run with the rest of `pytest backe
 import re
 from datetime import date
 
-from app.reconciling_items import BOX_INPUT, BOX_OUTPUT, SPECS, specs_for, wired_codes
+from app.pipeline.rules import RULES, coded_rules, rules_in_order
 from app.rule_taxonomy import (
     KINDS, REASON_CODES, RULE_TAXONOMY, STAGES, classify,
 )
@@ -50,55 +50,65 @@ def test_unknown_rule_falls_back_instead_of_crashing():
     assert derived["reason_code"] == ""
 
 
-# ------------------------------------------------- reconciling-item registry
-def test_specs_reference_real_rules():
+# --------------------------------------------------- qualification registry
+def test_coded_rules_reference_real_rules():
     codes = {r["code"] for r in parse_rules()}
-    for spec in SPECS:
-        assert spec.rule in codes, spec.rule
-        assert spec.box in (BOX_OUTPUT, BOX_INPUT)
-        assert spec.sign in (1, -1)
-        assert spec.label and spec.note
+    for rule in RULES:
+        if rule.structural:
+            continue
+        assert rule.code in codes, rule.code
+        assert rule.label and rule.note
 
 
 def test_wired_rules_are_classified_as_explanations():
-    """Anything the bridge can draw must be an explanation, never a mistake or a risk flag."""
+    """Anything that changes the expected return must be an explanation, not a mistake or risk."""
     taxonomy = dict(RULE_TAXONOMY)
-    for code in wired_codes():
+    for code in coded_rules():
         assert taxonomy[code][0] == "explanation", code
 
 
-def test_each_box_has_its_own_specs():
-    assert {s.rule for s in specs_for(BOX_OUTPUT)} == {"COR-01", "OUT-07"}
-    assert {s.rule for s in specs_for(BOX_INPUT)} == {"COR-02", "INP-09"}
+def test_each_direction_gets_its_own_rules():
+    assert {r.code for r in rules_in_order("sale") if r.code} == {"COR-01", "OUT-07"}
+    assert {r.code for r in rules_in_order("purchase") if r.code} == {"COR-02", "INP-09"}
 
 
-class _Inv:
-    def __init__(self, type_code, delivery):
-        self.invoice_type_code = type_code
-        self.delivery_date = delivery
+def test_rules_run_in_stage_order():
+    """A line must be deferred before notes are netted, or a note lands in a period its
+    original has left."""
+    for direction in ("sale", "purchase"):
+        stages = [STAGES.index(r.stage) for r in rules_in_order(direction)]
+        assert stages == sorted(stages)
+        coded = [r.stage for r in rules_in_order(direction) if r.code]
+        assert coded.index("tax-point") < coded.index("adjustment")
 
 
-def test_matchers_partition_the_population():
-    period_to = date(2025, 3, 31)
-    credit = _Inv(381, date(2025, 2, 15))
-    in_period = _Inv(388, date(2025, 1, 10))
-    straddling = _Inv(388, date(2025, 4, 3))
-
-    cn_spec = next(s for s in SPECS if s.rule == "COR-01")
-    lag_spec = next(s for s in SPECS if s.rule == "OUT-07")
-
-    assert cn_spec.match(credit, period_to)
-    assert not cn_spec.match(in_period, period_to)
-    # a credit note is never also a timing line — the two lines cannot double-count
-    assert not lag_spec.match(credit, period_to)
-    assert not lag_spec.match(in_period, period_to)
-    assert lag_spec.match(straddling, period_to)
+def _line(type_code, delivery, category="S", rate=15, status="cleared"):
+    return {"type_code": type_code, "delivery_date": delivery, "category": category,
+            "rate": rate, "status": status, "direction": "sale",
+            "period_to": date(2025, 3, 31), "tax_amount": 100.0, "taxable_amount": 666.67}
 
 
-def test_signs_move_the_bridge_the_right_way():
-    """Credit notes arrive negative and pass through; timing removes a positive amount."""
-    assert next(s for s in SPECS if s.rule == "COR-01").sign == 1
-    assert next(s for s in SPECS if s.rule == "OUT-07").sign == -1
+def test_predicates_partition_the_population():
+    credit = _line(381, date(2025, 2, 15))
+    in_period = _line(388, date(2025, 1, 10))
+    straddling = _line(388, date(2025, 4, 3))
+
+    cn = next(r for r in RULES if r.code == "COR-01")
+    lag = next(r for r in RULES if r.code == "OUT-07")
+
+    assert cn.matches(credit)
+    assert not cn.matches(in_period)
+    # a credit note is never also a timing line — the two cannot double-count the same doc
+    assert not lag.matches(credit)
+    assert not lag.matches(in_period)
+    assert lag.matches(straddling)
+
+
+def test_every_rule_emits_sql():
+    """The scale path: each rule's predicate must render as a WHERE fragment."""
+    for rule in RULES:
+        sql = rule.sql_when()
+        assert sql and "None" not in sql, rule.code or rule.stage
 
 
 # ------------------------------------------------------------------- scope

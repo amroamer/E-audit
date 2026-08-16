@@ -8,7 +8,7 @@ from ..db import get_db
 from ..models import Taxpayer, VatReturn, Invoice, AuditCase, Rule, TaxpayerResponse, EventLog
 from ..recon_engine import reconcile_case
 from ..priority import score_case
-from ..reconciling_items import wired_codes
+from ..pipeline.rules import coded_rules as wired_codes
 from ..rule_taxonomy import REASON_CODES, STAGES, KINDS
 from ..scope import scope_card
 from ..llm.service import llm

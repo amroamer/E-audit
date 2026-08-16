@@ -314,61 +314,166 @@ const TYPE_LABEL = { 388: "Tax invoice", 381: "Credit note", 383: "Debit note", 
 const CREDIT_NOTE = 381;
 const BOX_OUTPUT = "output", BOX_INPUT = "input";
 
-/* Declarative registry of the bridge's reconciling items — the JS mirror of
-   backend/app/reconciling_items.py. Wiring a new rule is one entry here. */
-const RECONCILING_ITEMS = [
+/* The qualification registry — JS mirror of backend/app/pipeline/rules.py.
+   Rules run WHILE the lines are summed, not after: each one admits, excludes or
+   reassigns a line, and only the survivors are added up. */
+const STAGE_ORDER = ["population", "identity", "status", "tax-point", "category",
+                     "adjustment", "aggregation", "timing", "materiality", "risk"];
+
+const QUALIFICATION_RULES = [
+  // --- structural: the population boundary, never toggleable
   {
-    rule: "COR-01", box: BOX_OUTPUT, sign: 1,
-    reason_code: "D03", reason_label: "Credit note",
-    label: "Credit notes (381) already applied in the return",
-    note: "These credit notes (type 381) are already reflected in the taxpayer's declared " +
-      "figure, so they are removed from the reconstructed total to avoid double-counting.",
-    match: (inv) => inv.type_code === CREDIT_NOTE,
+    code: "", stage: "status", action: "exclude", reason_code: "D06",
+    note: "Rejected, cancelled or superseded documents are not evidence of a supply.",
+    match: (l) => l.status !== "cleared" && l.status !== "reported",
   },
   {
-    rule: "OUT-07", box: BOX_OUTPUT, sign: -1,
-    reason_code: "T02", reason_label: "Invoice issued before the tax point",
-    label: "Clearance lag — invoices delivered in the next period",
+    code: "", stage: "category", action: "exclude", reason_code: "S01",
+    note: "Not standard-rated. Zero-rated, exempt and out-of-scope boxes are outside this PoC.",
+    match: (l) => l.category !== "S",
+  },
+  {
+    code: "", stage: "category", action: "exclude", reason_code: "R07",
+    note: "Standard-rated at a rate other than 15% — the 5% transitional box is out of scope.",
+    match: (l) => l.category === "S" && l.rate !== 15,
+  },
+  // --- coded: change the expected return; toggling one in the Rulebook moves the number
+  {
+    code: "OUT-07", stage: "tax-point", action: "defer-next", direction: "sale",
+    reason_code: "T02", label: "Clearance lag — invoices delivered in the next period",
     note: "Issued within the period but delivered in the next period (tax-point / clearance " +
       "lag) — the supply belongs to the following return.",
-    match: (inv, periodTo) => inv.type_code !== CREDIT_NOTE && inv.delivery_date && inv.delivery_date > periodTo,
+    match: (l, periodTo) => l.type_code !== CREDIT_NOTE && l.delivery_date && l.delivery_date > periodTo,
   },
   {
-    rule: "COR-02", box: BOX_INPUT, sign: 1,
-    reason_code: "D03", reason_label: "Credit note",
-    label: "Supplier credit notes (381) reducing recoverable input",
-    note: "Supplier credit notes (type 381) reduce recoverable input VAT and are already " +
-      "reflected in the declared figure.",
-    match: (inv) => inv.type_code === CREDIT_NOTE,
-  },
-  {
-    rule: "INP-09", box: BOX_INPUT, sign: -1,
-    reason_code: "T02", reason_label: "Invoice issued before the tax point",
-    label: "Input claimed in the wrong / a late period",
+    code: "INP-09", stage: "tax-point", action: "defer-next", direction: "purchase",
+    reason_code: "T02", label: "Input claimed in the wrong / a late period",
     note: "Purchase invoices delivered in the next period — the input belongs to the " +
       "following return.",
-    match: (inv, periodTo) => inv.type_code !== CREDIT_NOTE && inv.delivery_date && inv.delivery_date > periodTo,
+    match: (l, periodTo) => l.type_code !== CREDIT_NOTE && l.delivery_date && l.delivery_date > periodTo,
+  },
+  {
+    code: "COR-01", stage: "adjustment", action: "admit", direction: "sale",
+    reason_code: "D03", label: "Credit notes (381) netted against sales",
+    excludeWhenDisabled: true,
+    note: "Credit notes reduce output VAT and belong in the expected return. Disabling " +
+      "COR-01 removes them from the reconstruction.",
+    match: (l) => l.type_code === CREDIT_NOTE,
+  },
+  {
+    code: "COR-02", stage: "adjustment", action: "admit", direction: "purchase",
+    reason_code: "D03", label: "Supplier credit notes (381) netted against purchases",
+    excludeWhenDisabled: true,
+    note: "Supplier credit notes reduce recoverable input VAT and belong in the expected " +
+      "return. Disabling COR-02 removes them from the reconstruction.",
+    match: (l) => l.type_code === CREDIT_NOTE,
   },
 ];
 
-/* A spec fires only when its rule is enabled in the library AND its invoices carry an amount. */
-function applySpecs(box, cleared, periodTo) {
+function rulesInOrder(direction) {
+  return QUALIFICATION_RULES
+    .filter((r) => !r.direction || r.direction === direction)
+    .slice()
+    .sort((a, b) => STAGE_ORDER.indexOf(a.stage) - STAGE_ORDER.indexOf(b.stage));
+}
+
+function wiredCodes() { return new Set(QUALIFICATION_RULES.filter((r) => r.code).map((r) => r.code)); }
+
+/* Walk every line through the stages; only survivors are summed. */
+function qualify(rows, direction, periodTo) {
+  const ordered = rulesInOrder(direction);
+  const structural = ordered.filter((r) => !r.code);
+  const coded = ordered.filter((r) => r.code);
+  return rows.map((row) => {
+    const line = { row, inPopulation: true, admitted: true, period: "current", matched: new Set() };
+    for (const rule of structural) {
+      if (rule.match(row, periodTo)) { line.inPopulation = false; line.admitted = false; break; }
+    }
+    if (line.inPopulation) {
+      for (const rule of coded) {
+        if (!rule.match(row, periodTo)) continue;
+        line.matched.add(rule.code);
+        const live = ruleOn(rule.code);
+        if (rule.action === "defer-next" && live) { line.period = "next"; break; }
+        if (rule.action === "exclude" && live) { line.admitted = false; break; }
+        if (rule.action === "admit" && !live && rule.excludeWhenDisabled) {
+          line.admitted = false; break;
+        }
+      }
+    }
+    line.counted = line.inPopulation && line.admitted && line.period === "current";
+    return line;
+  });
+}
+
+/* base + Σ rows === expected, by construction. */
+function compose(lines, direction) {
+  const pop = lines.filter((l) => l.inPopulation);
+  const coded = rulesInOrder(direction).filter((r) => r.code);
+  const netting = new Set(coded.filter((r) => r.excludeWhenDisabled).map((r) => r.code));
+  const baseLines = pop.filter((l) => ![...l.matched].some((c) => netting.has(c)));
+  const rows = [];
+  for (const rule of coded) {
+    const owned = pop.filter((l) => l.matched.has(rule.code));
+    if (!owned.length || !ruleOn(rule.code)) continue;
+    const sum = owned.reduce((s, l) => s + l.row.s_tax, 0);
+    const amount = r2(rule.excludeWhenDisabled ? sum : -sum);
+    if (Math.abs(amount) <= 0.005) continue;
+    rows.push({
+      rule: rule.code, stage: rule.stage, reason_code: rule.reason_code,
+      verdict: rule.action === "defer-next" ? "deferred-next" : "admitted",
+      label: rule.label, note: rule.note, amount, count: owned.length, lines: owned,
+    });
+  }
+  const counted = lines.filter((l) => l.counted);
+  return {
+    base_vat: r2(baseLines.reduce((s, l) => s + l.row.s_tax, 0)),
+    baseLines, rows,
+    expected_vat: r2(counted.reduce((s, l) => s + l.row.s_tax, 0)),
+    expected_base: r2(counted.reduce((s, l) => s + l.row.s_base, 0)),
+    counted: counted.length, population: pop.length,
+  };
+}
+
+/* Flatten invoices to the tax-subtotal grain the pipeline qualifies. */
+function lineRecords(invs, periodTo) {
+  return invs.map((inv) => ({
+    ...inv, category: "S", rate: 15, tax_amount: inv.s_tax, taxable_amount: inv.s_base,
+    period_to: periodTo,
+  }));
+}
+
+function lineInvoiceRows(lines) {
+  const seen = new Map();
+  for (const l of lines) {
+    const row = invRow(l.row);
+    if (seen.has(row.uuid)) seen.get(row.uuid).tax_amount = r2(seen.get(row.uuid).tax_amount + l.row.s_tax);
+    else seen.set(row.uuid, row);
+  }
+  return [...seen.values()];
+}
+
+/* Build the bridge items + drill-down details from what the rules did to the lines. */
+function explainFrom(comp) {
   const items = [];
   const details = {};
-  for (const spec of RECONCILING_ITEMS.filter((s) => s.box === box)) {
-    const rows = cleared.filter((i) => spec.match(i, periodTo));
-    const total = r2(spec.sign * rows.reduce((s, i) => s + i.s_tax, 0));
-    details[spec.rule] = {
-      type: "rule", rule: rinfo(spec.rule),
-      reason_code: spec.reason_code, reason_label: spec.reason_label,
-      note: spec.note, count: rows.length, total, invoices: rows.map(invRow),
+  for (const r of comp.rows) {
+    items.push([r.rule, r.label, r.amount]);
+    details[r.rule] = {
+      type: "rule", rule: rinfo(r.rule),
+      reason_code: r.reason_code, reason_label: REASON_LABEL[r.reason_code] || "",
+      stage: r.stage, verdict: r.verdict, note: r.note,
+      count: r.count, total: r.amount, invoices: lineInvoiceRows(r.lines),
     };
-    if (Math.abs(total) > 0.005 && ruleOn(spec.rule)) items.push([spec.rule, spec.label, total]);
   }
   return [items, details];
 }
 
-function wiredCodes() { return new Set(RECONCILING_ITEMS.map((s) => s.rule)); }
+const REASON_LABEL = {
+  D03: "Credit note", D06: "Technical rejection / resubmission",
+  T02: "Invoice issued before the tax point", S01: "Exempt supply",
+  R07: "Inconsistent tax-category coding",
+};
 
 function r2(n) { return Math.round((n + (n >= 0 ? 1 : -1) * 1e-9) * 100) / 100; }
 function r4(n) { return Math.round((n + (n >= 0 ? 1 : -1) * 1e-9) * 10000) / 10000; }
@@ -429,19 +534,16 @@ function reconstructInput(tp, ret, periodTo) {
   const declared = r2(pbox ? pbox.vat_amount : 0);
 
   const invs = DATA.invoices.filter((i) => i.taxpayer_id === tp.id && i.direction === "purchase");
-  const cleared = invs.filter((i) => i.status === "cleared" || i.status === "reported");
+  const considered = invs.filter((i) => i.status === "cleared" || i.status === "reported").length;
 
-  // The population split is structural, not a rule: a credit note is never part of the gross.
-  const grossRows = cleared.filter((i) => i.type_code !== CREDIT_NOTE).map(invRow);
-  const cnRows = cleared.filter((i) => i.type_code === CREDIT_NOTE).map(invRow);
-  const gross = r2(cleared.filter((i) => i.type_code !== CREDIT_NOTE).reduce((s, i) => s + i.s_tax, 0));
+  const lines = qualify(lineRecords(invs, periodTo), "purchase", periodTo);
+  const comp = compose(lines, "purchase");
+  const gross = comp.base_vat;
   const apparentGap = r2(gross - declared);
 
-  const [items, explainDetail] = applySpecs(BOX_INPUT, cleared, periodTo);
+  const [items, explainDetail] = explainFrom(comp);
 
-  const explainedSigned = r2(items.reduce((s, it) => s + it[2], 0));
-  const adjusted = r2(gross + explainedSigned);
-  const residual = r2(adjusted - declared);
+  const residual = r2(comp.expected_vat - declared);
   const explainedTotal = r2(apparentGap - residual);
   const explainedPct = apparentGap ? r4(explainedTotal / apparentGap) : null;
   const materiality = r2(Math.max(MATERIALITY_FLOOR, MATERIALITY_PCT * declared));
@@ -453,9 +555,10 @@ function reconstructInput(tp, ret, periodTo) {
 
   const reconDetail = {
     type: "reconstruction",
-    formula: "Σ TAXSUBTOTAL (tax category S @ 15%) over cleared purchase tax invoices",
-    note: "Standard-rated input VAT rebuilt from the taxpayer's cleared purchase e-invoices.",
-    count: grossRows.length, total: gross, invoices: grossRows,
+    formula: "Σ TAXSUBTOTAL (tax category S @ 15%) over qualified purchase lines",
+    note: "Standard-rated input VAT rebuilt line by line from the taxpayer's e-invoices. Each " +
+      "line was qualified before it was summed; the rows below are the lines that entered the baseline.",
+    count: comp.baseLines.length, total: gross, invoices: lineInvoiceRows(comp.baseLines),
   };
   const declaredDetail = {
     type: "declared", box_code: "standard_rate_purchase", box_label: "Standard-rated purchases",
@@ -468,9 +571,9 @@ function reconstructInput(tp, ret, periodTo) {
   };
   let resNote;
   if (state === "potential-finding")
-    resNote = "Declared input VAT exceeds what the cleared purchase e-invoices support — a potential over-claim of recoverable input VAT. Recommended next step: request the purchase ledger and tax invoices covering the residual.";
+    resNote = "Declared input VAT exceeds what the qualified purchase e-invoices support — a potential over-claim of recoverable input VAT. Recommended next step: request the purchase ledger and tax invoices covering the residual.";
   else if (state === "supported")
-    resNote = "Within the materiality threshold — the declared input VAT is supported by the purchase e-invoice evidence. No finding.";
+    resNote = "Within the materiality threshold — the declared return is supported by the qualified e-invoice evidence. No finding.";
   else
     resNote = "Declared input is below what the invoices support — the taxpayer may have under-claimed recoverable input VAT; no revenue risk to the Authority.";
   const residualDetail = { type: "residual", amount: residual, materiality, band, state, note: resNote };
@@ -484,14 +587,17 @@ function reconstructInput(tp, ret, periodTo) {
   });
   bridge.push({ seq: items.length + 2, kind: "residual", rule: null, label: "Unexplained residual", amount: residual, running, detail: residualDetail });
 
-  const considered = cleared.length;
+  const deferredOut = lines.filter((l) => l.inPopulation && l.period === "next");
   return {
     box: "Standard-rated purchases (input VAT)",
     declared, reconstructed_gross: gross, apparent_gap: apparentGap,
     explained_total: explainedTotal, explained_pct: explainedPct,
     residual, materiality, band, state, bridge,
     invoices_considered: considered,
-    evidence_invoices: grossRows.concat(cnRows),
+    evidence_invoices: lineInvoiceRows(lines.filter((l) => l.inPopulation)),
+    expected_vat: comp.expected_vat, expected_base: comp.expected_base,
+    population_lines: comp.population, counted_lines: comp.counted,
+    deferred_out: { count: deferredOut.length, amount: r2(deferredOut.reduce((s2, l) => s2 + l.row.s_tax, 0)) },
   };
 }
 
@@ -505,22 +611,20 @@ function reconcileCase(caseId) {
   const declared = r2(dbox ? dbox.vat_amount : 0);
 
   const invs = DATA.invoices.filter((i) => i.taxpayer_id === tp.id && i.direction === "sale");
-  const cleared = invs.filter((i) => i.status === "cleared" || i.status === "reported");
 
-  // Population split is structural: credit notes (381) are never part of the gross.
-  const grossRows = cleared.filter((i) => i.type_code !== CREDIT_NOTE).map(invRow);
-  const cnRows = cleared.filter((i) => i.type_code === CREDIT_NOTE).map(invRow);
-  const grossPos = r2(cleared.filter((i) => i.type_code !== CREDIT_NOTE).reduce((s, i) => s + i.s_tax, 0));
+  const lines = qualify(lineRecords(invs, c.period_to), "sale", c.period_to);
+  const comp = compose(lines, "sale");
+  const grossPos = comp.base_vat;
   const apparentGap = r2(grossPos - declared);
 
-  const [items, explainDetail] = applySpecs(BOX_OUTPUT, cleared, c.period_to);
+  const [items, explainDetail] = explainFrom(comp);
 
+  // auditor-confirmed evidence is not a line decision — it applies after qualification
   const responses = responsesOf(caseId);
   for (const r of responses) items.push([r.code, r.label, r2(-Math.abs(r.amount))]);
 
-  const explainedSigned = r2(items.reduce((s, it) => s + it[2], 0));
-  const adjusted = r2(grossPos + explainedSigned);
-  const residual = r2(adjusted - declared);
+  const responseTotal = r2(responses.reduce((s2, r) => s2 - Math.abs(r.amount), 0));
+  const residual = r2(comp.expected_vat + responseTotal - declared);
   const explainedTotal = r2(apparentGap - residual);
   const explainedPct = apparentGap ? r4(explainedTotal / apparentGap) : null;
   const materiality = r2(Math.max(MATERIALITY_FLOOR, MATERIALITY_PCT * declared));
@@ -532,9 +636,10 @@ function reconcileCase(caseId) {
 
   const reconDetail = {
     type: "reconstruction",
-    formula: "Σ TAXSUBTOTAL (tax category S @ 15%) over cleared sale tax invoices",
-    note: "Standard-rated output VAT rebuilt from the taxpayer's cleared e-invoices.",
-    count: grossRows.length, total: grossPos, invoices: grossRows,
+    formula: "Σ TAXSUBTOTAL (tax category S @ 15%) over qualified sale lines",
+    note: "Standard-rated output VAT rebuilt line by line from the taxpayer's e-invoices. Each " +
+      "line was qualified before it was summed; the rows below are the lines that entered the baseline.",
+    count: comp.baseLines.length, total: grossPos, invoices: lineInvoiceRows(comp.baseLines),
   };
   for (const r of responses) {
     explainDetail[r.code] = {
@@ -558,7 +663,7 @@ function reconcileCase(caseId) {
   if (state === "potential-finding")
     resNote = "Above the materiality threshold and unexplained by any rule — a potential under-declaration of output VAT. Recommended next step: request the sales ledger covering the residual to confirm.";
   else if (state === "supported")
-    resNote = "Within the materiality threshold — the declared return is supported by the e-invoice evidence. No finding.";
+    resNote = "Within the materiality threshold — the declared return is supported by the qualified e-invoice evidence. No finding.";
   else
     resNote = "Material negative residual — the taxpayer may have over-declared; investigate.";
   const residualDetail = { type: "residual", amount: residual, materiality, band, state, note: resNote };
@@ -598,7 +703,11 @@ function reconcileCase(caseId) {
     explained_pct: explainedPct,
     residual, materiality, band, state, bridge,
     invoices_considered: invs.length,
-    evidence_invoices: grossRows.concat(cnRows),
+    evidence_invoices: lineInvoiceRows(lines.filter((l) => l.inPopulation)),
+    expected_vat: comp.expected_vat, expected_base: comp.expected_base,
+    population_lines: comp.population, counted_lines: comp.counted,
+    deferred_out: (() => { const d = lines.filter((l) => l.inPopulation && l.period === "next");
+      return { count: d.length, amount: r2(d.reduce((s2, l) => s2 + l.row.s_tax, 0)) }; })(),
     purchase,
     combined,
   };
