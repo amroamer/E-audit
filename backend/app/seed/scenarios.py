@@ -365,6 +365,76 @@ def scenario_yanbu_overdeclared(db: Session) -> None:
     ))
 
 
+def scenario_hail_manual_entry(db: Session) -> None:
+    """Keying error: the declared box is the expected figure with the decimal point moved.
+
+    This is the case the investigation layer exists for. The e-invoices support SAR 520,000
+    of output VAT; the return says SAR 52,000. Every prior period this taxpayer filed sits
+    around half a million, so the figure is out of character for the business as well as for
+    the invoices — a slipped decimal, not unreported trade. The right next action is to ask
+    the taxpayer to confirm the box, not to raise an assessment.
+    """
+    tp = Taxpayer(
+        vat_registration_number="300033300500003", partner="BP100007",
+        id_number="7003330005", name="Hail Medical Supplies Co.",
+        ind_sector="Medical equipment", business_size="medium",
+        accounting_method="accrual", resident_flag=True, bp_type="org",
+        reg_from=date(2019, 2, 1),
+    )
+    db.add(tp); db.flush()
+
+    # three prior quarters, all filed around SAR 500k — the taxpayer's own baseline
+    for i, (pf, pt, vat) in enumerate([
+        (date(2024, 4, 1), date(2024, 6, 30), 498_000),
+        (date(2024, 7, 1), date(2024, 9, 30), 515_000),
+        (date(2024, 10, 1), date(2024, 12, 31), 527_000),
+    ]):
+        prior = VatReturn(
+            form_number=f"VAT-2024Q{i + 2}-HL", taxpayer_id=tp.id,
+            period_from=pf, period_to=pt, data_version=1, current_flag=True,
+            submission_date=pt + timedelta(days=20), filing_deadline=pt + timedelta(days=30),
+            total_vat_due=vat, net_due_vat=vat,
+        )
+        prior.boxes += [
+            _box("standard_rate_sales", "Standard-rated sales", "sale",
+                 round(vat / 0.15, 2), vat, rate=15, category="S"),
+        ]
+        db.add(prior)
+
+    # the period under audit — SAR 52,000 declared where SAR 520,000 is supported
+    ret = VatReturn(
+        form_number="VAT-2025Q1-HL", taxpayer_id=tp.id,
+        period_from=PERIOD_FROM, period_to=PERIOD_TO, data_version=1, current_flag=True,
+        submission_date=date(2025, 4, 24), filing_deadline=DEADLINE,
+        sadad_bill_number="SADAD-HL-2025Q1", sadad_paid=True,
+        total_vat_due=52_000, net_due_vat=7_000,
+    )
+    ret.boxes += [
+        _box("standard_rate_sales", "Standard-rated sales", "sale",
+             346_666.67, 52_000, rate=15, category="S"),
+        _box("standard_rate_purchase", "Standard-rated purchases", "purchase",
+             300_000, 45_000, rate=15, category="S"),
+    ]
+    db.add(ret)
+
+    # 20 cleared sale invoices @ VAT 26,000 => 520,000 = declared 52,000 x 10 exactly
+    for i in range(20):
+        db.add(_sale_invoice(tp, i + 1, 173_333.33, 15, date(2025, 2, 10)))
+    # purchases tie to the declared input, so only the output box is in question
+    for i in range(3):
+        db.add(_purchase_invoice(tp, i + 1, 100_000, 15, date(2025, 2, 12)))
+
+    db.add(AuditCase(
+        case_id="CASE-2025-0487", taxpayer_id=tp.id, form_number=ret.form_number,
+        period_from=PERIOD_FROM, period_to=PERIOD_TO,
+        case_reason_code="EINV_GT_RETURN", risk_category="OUTPUT_UNDERDECLARED",
+        vat_priority="HIGH", audit_type="desk", status="referred",
+        referral_date=date.today() - timedelta(days=10),
+        sla_due=date.today() + timedelta(days=20),
+        scenario_key="manual-entry",
+    ))
+
+
 def build_all(db: Session) -> None:
     scenario_alfaisaliah(db)
     scenario_nael_clean(db)
@@ -372,3 +442,4 @@ def build_all(db: Session) -> None:
     scenario_tabuk_timing(db)
     scenario_najd_underdeclared(db)
     scenario_yanbu_overdeclared(db)
+    scenario_hail_manual_entry(db)

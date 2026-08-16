@@ -78,6 +78,41 @@ def scope():
     return scope_card()
 
 
+@router.get("/cases/{case_id}/investigate")
+def investigate_case(case_id: str, db: Session = Depends(get_db)):
+    """Run the multi-agent investigation over the reconciled case.
+
+    Evidence agents propose typed hypotheses; a deterministic adjudicator settles each one
+    against the engine's figures. No model is involved in any number here, and the whole
+    loop runs without credentials — the agents are pattern detectors, not writers.
+    """
+    from ..agents.orchestrator import investigate
+
+    c = db.scalar(select(AuditCase).where(AuditCase.case_id == case_id))
+    if not c:
+        raise HTTPException(404, "case not found")
+    recon = reconcile_case(db, case_id, persist=False)
+
+    prior_returns = [
+        {"form_number": r.form_number,
+         "period_from": r.period_from.isoformat(), "period_to": r.period_to.isoformat(),
+         "vat_amount": next((float(b.vat_amount) for b in r.boxes
+                             if b.box_code == "standard_rate_sales" and b.direction == "sale"), 0.0)}
+        for r in db.scalars(
+            select(VatReturn).where(VatReturn.taxpayer_id == c.taxpayer_id,
+                                    VatReturn.period_from < c.period_from)
+            .order_by(VatReturn.period_from)).all()
+    ]
+    prior_cases = [
+        {"case_id": pc.case_id, "root_cause_code": pc.root_cause_code,
+         "result": pc.audit_result_type, "action": pc.action_taken}
+        for pc in db.scalars(
+            select(AuditCase).where(AuditCase.taxpayer_id == c.taxpayer_id,
+                                    AuditCase.case_id != case_id)).all()
+    ]
+    return investigate(recon, prior_returns=prior_returns, prior_cases=prior_cases).model_dump()
+
+
 class RulePatch(BaseModel):
     enabled: bool
 
