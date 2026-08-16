@@ -4,6 +4,7 @@ import TaxpayerBrief from "../components/TaxpayerBrief";
 import AiNarration from "../components/AiNarration";
 import NextBestAction from "../components/NextBestAction";
 import AuditReport from "../components/AuditReport";
+import InvestigationPanel from "../components/InvestigationPanel";
 import TaxpayerResponsePanel from "../components/TaxpayerResponsePanel";
 
 interface BridgeStep {
@@ -397,6 +398,7 @@ export default function Reconciliation() {
         </div>
       )}
 
+      <InvestigationPanel id={id} rev={rev} />
       <NextBestAction id={id} rev={rev} />
       <TaxpayerResponsePanel id={id} residual={d.residual} onChanged={() => setRev((r) => r + 1)} />
       <AuditReport id={id} rev={rev} />

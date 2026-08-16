@@ -52,6 +52,46 @@ export interface RuleRow {
   wired: boolean;
 }
 
+/* ---- investigation (app/agents) --------------------------------------------
+   Agents propose typed tests; a deterministic adjudicator settles them against the
+   engine. Nothing here is model output, which is why it renders without an API key. */
+export type AdjudicationStatus = "confirmed" | "refuted" | "insufficient-evidence";
+
+export interface Hypothesis {
+  id: string;
+  agent: string;
+  claim: string;
+  reason_code: string;
+  test: { kind: string; box: string; params: Record<string, unknown> };
+  evidence_refs: string[];
+  confidence: "high" | "medium" | "low";
+}
+export interface Adjudication {
+  hypothesis_id: string;
+  status: AdjudicationStatus;
+  amount: number;
+  detail: Record<string, unknown>;
+  explanation: string;
+}
+export interface CaseFileEntry {
+  seq: number;
+  round: number;
+  kind: "fact" | "hypothesis" | "adjudication" | "objection" | "conclusion";
+  agent: string;
+  payload: Record<string, any>;
+}
+export interface Investigation {
+  case_id: string;
+  rounds: number;
+  entries: CaseFileEntry[];
+  hypotheses: Hypothesis[];
+  adjudications: Adjudication[];
+  leading: string | null;
+  conclusion: string;
+  unexplained: number;
+  source: string;
+}
+
 export interface ScopeItem {
   item: string;
   detail?: string;
@@ -90,6 +130,7 @@ export const listRules = () => getJSON<RuleRow[]>("/rules");
 export const getHealth = () => getJSON<Health>("/health");
 export const getOverview = () => getJSON<ExecOverview>("/overview");
 export const getScope = () => getJSON<ScopeCard>("/scope");
+export const getInvestigation = (id: string) => getJSON<Investigation>(`/cases/${id}/investigate`);
 
 export const reseedDemo = async (): Promise<{ status: string; message: string }> => {
   const r = await fetch(BASE + "/admin/reseed", { method: "POST" });

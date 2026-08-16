@@ -253,6 +253,18 @@ td .sub{font-size:11.5px;color:var(--faint);margin-top:2px}
 .chip.on.kind-explanation{background:var(--low);border-color:var(--low)}
 .chip.on.kind-mistake{background:var(--high);border-color:var(--high)}
 .chip.on.kind-risk{background:var(--med);border-color:var(--med)}
+/* investigation — agents propose, the adjudicator settles */
+.inv-conc{font-size:14px;line-height:1.6;margin:0 0 14px;padding:12px 14px;border-radius:10px;
+  border:1px solid var(--line);border-left:3px solid var(--ai);background:var(--surface-2)}
+.inv-round{font-size:10.5px;text-transform:uppercase;letter-spacing:.6px;color:var(--faint);margin:14px 0 8px}
+.hyp{display:grid;grid-template-columns:64px 1fr auto;gap:10px;align-items:start;padding:10px 12px;
+  border:1px solid var(--line);border-radius:10px;margin-bottom:8px;font-size:13px;line-height:1.5}
+.hyp.lead{border-color:var(--low);background:var(--low-bg)}
+.hyp .hid{font-family:var(--mono);font-size:11.5px;font-weight:700;color:var(--brand)}
+.hyp .agent{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px}
+.hyp .verdict{font-size:12px;color:var(--muted);margin-top:5px}
+.hyp .amt2{white-space:nowrap;font-variant-numeric:tabular-nums;font-weight:650;font-size:13px}
+@media(max-width:640px){.hyp{grid-template-columns:1fr}}
 /* scope card */
 .scope-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:26px;margin:14px 0 16px}
 .scope-col h4{font-size:11.5px;text-transform:uppercase;letter-spacing:.6px;color:var(--brand-deep);margin:0 0 10px}
