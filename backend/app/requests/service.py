@@ -201,11 +201,15 @@ def state(db: Session, case: AuditCase) -> dict:
                 "request_item_id": g.request_item_id, "document_id": g.document_id}
 
     open_blocking = [g for g in by_round.get(req.seq, []) if g.severity == BLOCKING] if req else []
+    # A round that has been issued but not answered has no gaps *yet* — an absence of findings
+    # is not the same as a satisfied request, and treating it as one would open the substantive
+    # review on evidence that has not arrived.
+    answered = bool(req) and req.status in ("answered", "satisfied")
     return {
         "case_id": case.case_id,
         "round": req.seq if req else 0,
         "status": req.status if req else "not-started",
-        "complete": bool(req) and not open_blocking,
+        "complete": answered and not open_blocking,
         "rounds": [
             {
                 "seq": r.seq, "status": r.status, "subject": r.subject,

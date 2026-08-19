@@ -182,3 +182,12 @@ DRAFT_FOLLOWUP_INSTR = (
 
 def fence_facts(text: str) -> str:
     return _fence("FACTS", text)
+
+
+DRAFT_VERDICT_INSTR = (
+    "TASK — DRAFT THE OUTCOME LETTER. Using only the FACTS block, write the letter telling the "
+    "taxpayer the result of the review. State the period, what was found, and what happens next. "
+    "Match the tone to the outcome given: where nothing is proposed, say so plainly and close the "
+    "matter; where a difference remains, describe it as a proposed position and not an "
+    "assessment, and say what the taxpayer may do about it. Do NOT assert that tax is due, cite "
+    "legislation, threaten penalties, or state any figure that is not in the FACTS block.")

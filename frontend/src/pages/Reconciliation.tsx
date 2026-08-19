@@ -4,8 +4,10 @@ import TaxpayerBrief from "../components/TaxpayerBrief";
 import AiNarration from "../components/AiNarration";
 import NextBestAction from "../components/NextBestAction";
 import AuditReport from "../components/AuditReport";
+import VerdictLetter from "../components/VerdictLetter";
 import InvestigationPanel from "../components/InvestigationPanel";
 import CaseTabs from "../components/CaseTabs";
+import LifecycleRail from "../components/LifecycleRail";
 import TaxpayerResponsePanel from "../components/TaxpayerResponsePanel";
 
 interface BridgeStep {
@@ -323,6 +325,7 @@ export default function Reconciliation() {
       </div>
 
       <CaseTabs id={id!} />
+      <LifecycleRail id={id!} />
 
       <TaxpayerBrief id={id} />
 
@@ -405,6 +408,7 @@ export default function Reconciliation() {
       <NextBestAction id={id} rev={rev} />
       <TaxpayerResponsePanel id={id} residual={d.residual} onChanged={() => setRev((r) => r + 1)} />
       <AuditReport id={id} rev={rev} />
+      <VerdictLetter id={id!} />
 
       {modal && (
         <Modal title={modal.title} onClose={() => setModal(null)}>

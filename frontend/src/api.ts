@@ -280,6 +280,31 @@ export interface PrecedentBriefing {
   suggested_items: SuggestedItem[];
 }
 
+/* ---- the case lifecycle (app/casefile) --------------------------------------
+   Five stages, derived from the case's own data rather than stored, so the rail cannot drift
+   from reality. No stage advances by itself — every gate is a human decision. */
+export type StageState = "done" | "active" | "waiting" | "pending" | "skipped";
+export interface LifecycleStage {
+  key: string;
+  label: string;
+  state: StageState;
+  owner: string;
+  summary: string;
+  next_action: string;
+  detail: Record<string, any>;
+}
+export interface Lifecycle {
+  case_id: string;
+  stages: LifecycleStage[];
+  current: string;
+  current_label: string;
+  waiting_on: string;
+  next_action: string;
+  complete: boolean;
+  /** the auto-clear claim: this case resolved without any request to the taxpayer */
+  no_contact_needed: boolean;
+}
+
 /* ---- the request/response loop (app/requests) ------------------------------- */
 export interface PlannedItem {
   key: string;
@@ -400,6 +425,8 @@ export const getPrecedent = (id: string) => getJSON<PrecedentBriefing>(`/cases/$
 export const getPlan = (id: string) => getJSON<RequestPlan>(`/cases/${id}/plan`);
 export const getLoop = (id: string) => getJSON<LoopState>(`/cases/${id}/requests`);
 export const getFollowup = (id: string) => getJSON<Draft>(`/cases/${id}/followup`);
+export const getLifecycle = (id: string) => getJSON<Lifecycle>(`/cases/${id}/lifecycle`);
+export const getVerdict = (id: string) => getJSON<Draft>(`/cases/${id}/verdict`);
 
 const post = async <T>(path: string): Promise<T> => {
   const r = await fetch(BASE + path, { method: "POST" });

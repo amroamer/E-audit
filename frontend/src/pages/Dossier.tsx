@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import CaseTabs from "../components/CaseTabs";
+import LifecycleRail from "../components/LifecycleRail";
 import PrecedentPanel from "../components/PrecedentPanel";
 import { getDossier, type Dossier as D } from "../api";
 
@@ -66,6 +67,7 @@ export default function Dossier() {
       </header>
 
       <CaseTabs id={id} />
+      <LifecycleRail id={id} />
 
       {/* ---------------------------------------------- why this case exists */}
       <div className="panel">

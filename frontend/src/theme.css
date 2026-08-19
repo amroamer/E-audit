@@ -376,3 +376,19 @@ td .sub{font-size:11.5px;color:var(--faint);margin-top:2px}
   border:1px dashed var(--line);border-radius:10px;background:var(--surface-2)}
 .uploadbar select,.uploadbar input[type=file]{font:inherit;font-size:12.5px;color:var(--ink);
   background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:6px 9px}
+
+/* ---- the lifecycle rail: where the case is, and whose move it is */
+.rail{margin:0 0 18px}
+.rail-track{display:flex;gap:6px;align-items:stretch}
+.rail-stage{flex:1;display:flex;align-items:center;gap:7px;padding:8px 11px;border-radius:9px;
+  border:1px solid var(--line);background:var(--surface-2);font-size:12.5px;color:var(--muted);min-width:0}
+.rail-stage .rs-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rail-stage .rs-mark{font-weight:700;flex:none}
+.rail-stage.done{background:var(--low-bg);border-color:var(--low);color:var(--low)}
+.rail-stage.active{background:var(--surface);border-color:var(--brand);color:var(--brand);font-weight:650;
+  box-shadow:0 0 0 1px var(--brand) inset}
+.rail-stage.waiting{background:var(--med-bg);border-color:var(--med);color:var(--med);font-weight:650}
+.rail-stage.skipped{opacity:.55;border-style:dashed}
+.rail-stage.pending{opacity:.6}
+.rail-note{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-top:8px}
+@media(max-width:900px){.rail-track{flex-wrap:wrap}.rail-stage{flex:1 1 44%}}

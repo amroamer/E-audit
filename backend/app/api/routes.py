@@ -465,6 +465,30 @@ def followup(case_id: str, db: Session = Depends(get_db)):
     return draft_followup(case, case.taxpayer, req, list(gaps))
 
 
+@router.get("/cases/{case_id}/lifecycle")
+def lifecycle(case_id: str, db: Session = Depends(get_db)):
+    """Where this case is in the five-stage run, and whose move it is.
+
+    Derived from the case's own data rather than a stored status, so it cannot fall out of
+    step with reality. No stage advances by itself — every gate is a human decision (§6).
+    """
+    from ..casefile import status as case_status
+
+    return case_status(db, _case_or_404(db, case_id))
+
+
+@router.get("/cases/{case_id}/verdict")
+def verdict(case_id: str, db: Session = Depends(get_db)):
+    """Draft the taxpayer letter reporting the outcome. §8's second administrative burden."""
+    from ..agents.correspondence import draft_verdict
+    from ..agents.orchestrator import investigate
+
+    case = _case_or_404(db, case_id)
+    recon = reconcile_case(db, case_id, persist=False)
+    inv = investigate(recon).model_dump()
+    return draft_verdict(case, case.taxpayer, recon, inv)
+
+
 @router.get("/demo/response-file")
 def demo_response_file():
     """The taxpayer's deficient sales analysis, so the upload path can be demonstrated live."""

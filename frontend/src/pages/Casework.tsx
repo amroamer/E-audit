@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import CaseTabs from "../components/CaseTabs";
+import LifecycleRail from "../components/LifecycleRail";
 import VerifyBadge from "../components/VerifyBadge";
 import {
   demoResponseFileUrl,
@@ -192,6 +193,7 @@ export default function Casework() {
       </header>
 
       <CaseTabs id={id} />
+      <LifecycleRail id={id} />
       {err && <p className="error">{err}</p>}
 
       {/* ---------------------------------------------- the plan */}

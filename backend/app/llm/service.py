@@ -28,7 +28,8 @@ from .prompts import (
     FROZEN_PREAMBLE, build_context, build_history_context,
     NARRATE_INSTR, NBA_INSTR, SUMMARY_INSTR, REPORT_INSTR,
     LETTER_SYSTEM, LETTER_INSTR, build_letter_context, fence_letter,
-    DRAFT_LETTER_SYSTEM, DRAFT_REQUEST_INSTR, DRAFT_FOLLOWUP_INSTR, fence_facts,
+    DRAFT_LETTER_SYSTEM, DRAFT_REQUEST_INSTR, DRAFT_FOLLOWUP_INSTR,
+    DRAFT_VERDICT_INSTR, fence_facts,
 )
 from .verify import (
     verify_claims, verify_conclusion, verify_correspondence, render_placeholders, StreamGuard,
@@ -337,7 +338,8 @@ class LLMService:
         `fallback` is a callable producing the deterministic letter, which is complete and
         sendable English. Degrading to it costs polish, never correctness.
         """
-        instr = DRAFT_FOLLOWUP_INSTR if kind == "follow-up" else DRAFT_REQUEST_INSTR
+        instr = {"follow-up": DRAFT_FOLLOWUP_INSTR,
+                 "verdict": DRAFT_VERDICT_INSTR}.get(kind, DRAFT_REQUEST_INSTR)
         enabled, reason = availability()
         if not enabled:
             return {"text": fallback(), "source": _src(reason), "verified": True,

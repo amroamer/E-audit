@@ -22,6 +22,7 @@ from ..llm.service import llm
 
 REQUEST = "Request Drafter"
 FOLLOWUP = "Follow-up Drafter"
+VERDICT = "Verdict Drafter"
 
 SIGNOFF = ("Zakat, Tax and Customs Authority\nVAT Audit")
 
@@ -176,3 +177,98 @@ def draft_followup(case, taxpayer, req, gaps) -> dict:
     facts = followup_facts(case, taxpayer, req, gaps)
     return llm.draft_letter(kind="follow-up", facts=facts,
                             fallback=lambda: fb_followup(case, taxpayer, req, gaps))
+
+
+# --------------------------------------------------------------------------- closure (§8)
+
+VERDICT_HEAD = {
+    "supported": "No adjustment is proposed",
+    "potential-finding": "A difference remains unexplained",
+    "unresolved": "A difference remains unresolved",
+}
+
+
+def verdict_facts(case, taxpayer, recon, investigation=None) -> str:
+    """The engine's conclusion, as the only things the letter may state."""
+    lines = [
+        f"Taxpayer: {taxpayer.name}",
+        f"VAT registration number: {taxpayer.vat_registration_number}",
+        f"Period reviewed: {_period(case)}",
+        f"Box reviewed: {recon.get('box_title') or recon.get('box')}",
+        f"Outcome: {VERDICT_HEAD.get(recon['state'], recon['state'])}",
+        f"Declared: SAR {recon['declared']:,.2f}",
+        f"Supported by the qualified e-invoice evidence: SAR {recon['expected_vat']:,.2f}",
+        f"Unexplained difference: SAR {abs(recon['residual']):,.2f}",
+        f"Materiality applied: SAR {recon['materiality']:,.2f}",
+        "Differences accounted for:",
+    ]
+    for b in recon.get("bridge", []):
+        if b.get("rule"):
+            lines.append(f"  - {b['rule']}: {b['label']} — SAR {abs(b['amount']):,.2f}")
+    if not any(b.get("rule") for b in recon.get("bridge", [])):
+        lines.append("  - none")
+    if investigation and investigation.get("conclusion"):
+        lines.append(f"Reviewer's conclusion: {investigation['conclusion']}")
+    return "\n".join(lines)
+
+
+def fb_verdict(case, taxpayer, recon, investigation=None) -> str:
+    """The verdict letter, written deterministically."""
+    residual = abs(float(recon["residual"]))
+    state = recon["state"]
+    body = [
+        f"{taxpayer.name}",
+        f"VAT registration number {taxpayer.vat_registration_number}",
+        "",
+        f"Subject: Outcome of the VAT review — period {_period(case)}",
+        "",
+        "Dear Sir or Madam,",
+        "",
+        f"The Authority has completed its review of the VAT return filed for the period "
+        f"{_period(case)}. This letter sets out the outcome.",
+        "",
+    ]
+    explained = [b for b in recon.get("bridge", []) if b.get("rule")]
+    if explained:
+        body.append("The following differences between the return and the e-invoices issued in "
+                    "the period have been accounted for:")
+        for b in explained:
+            body.append(f"  - {b['label']} (SAR {abs(b['amount']):,.2f})")
+        body.append("")
+
+    if state == "supported":
+        body += [
+            "On that basis the declared figures are supported by the evidence available, and "
+            "no adjustment is proposed. No further action is required from you in respect of "
+            "this period.",
+        ]
+    elif state == "unresolved":
+        body += [
+            f"A difference of SAR {residual:,.2f} remains, and on the evidence available it "
+            f"appears to be in your favour. Before the review can be closed, please confirm "
+            f"the figures declared for the period, or provide the further explanation set out "
+            f"in any accompanying request.",
+        ]
+    else:
+        body += [
+            f"A difference of SAR {residual:,.2f} remains unexplained, against a materiality "
+            f"threshold of SAR {float(recon['materiality']):,.2f}. This is a proposed position "
+            f"and not an assessment.",
+            "",
+            "If you consider the difference to be explained, please respond with the "
+            "supporting documentation. If no response is received, the Authority will proceed "
+            "on the basis set out above.",
+        ]
+    body += ["", "Yours faithfully,", SIGNOFF]
+    return "\n".join(body)
+
+
+def draft_verdict(case, taxpayer, recon, investigation=None) -> dict:
+    """Draft the taxpayer letter that reports the outcome. §8's second administrative burden.
+
+    Same guard as the request letters, and the same reason for it: the letter states the
+    Authority's position, so every figure in it has to be one the engine computed.
+    """
+    facts = verdict_facts(case, taxpayer, recon, investigation)
+    return llm.draft_letter(kind="verdict", facts=facts,
+                            fallback=lambda: fb_verdict(case, taxpayer, recon, investigation))
