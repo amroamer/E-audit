@@ -130,6 +130,12 @@ class Invoice(Base):
     status_code: Mapped[str] = mapped_column(String(20), default="cleared")  # cleared/reported/rejected
     buyer_vat: Mapped[str] = mapped_column(String(20), default="")
     seller_vat: Mapped[str] = mapped_column(String(20), default="")
+    # Who the counterparty is, and when the supply was actually recognised. The auditors named
+    # government supplies specifically: recognition can wait on approval through the Etimad
+    # platform, months after the transaction period, and a comparison that ignores this reports
+    # a timing difference as an under-declaration. Sourced from counterparty master (CP-MASTER).
+    counterparty_class: Mapped[str] = mapped_column(String(20), default="")  # government/related/…
+    approval_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     tax_exclusive_amount: Mapped[float] = mapped_column(Money, default=0)
     tax_amount: Mapped[float] = mapped_column(Money, default=0)
     rounding_amount: Mapped[float] = mapped_column(Money, default=0)

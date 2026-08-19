@@ -23,7 +23,7 @@ from dataclasses import dataclass
 from enum import Enum
 
 from ..rule_taxonomy import STAGES
-from .predicates import Col, All, Predicate, eq, gt, ne, not_in, not_null
+from .predicates import Col, All, Predicate, eq, gt, is_in, ne, not_in, not_null
 
 CREDIT_NOTE = 381
 
@@ -50,6 +50,12 @@ class QualificationRule:
     label: str = ""                       # bridge caption, when it moves an amount
     direction: str = ""                   # "" = both
     exclude_when_disabled: bool = False    # ADMIT rules: dropping the rule drops the lines
+    # Scope. The auditors were explicit that the expected relationship varies by sector and by
+    # who the counterparty is — a government supply may not be recognised until it clears
+    # Etimad, months after the transaction period, and telecoms differ again. A rule that
+    # applies to every taxpayer cannot express that, so both are matched like `direction`.
+    sectors: tuple[str, ...] = ()          # () = every sector
+    counterparty_class: str = ""           # "" = any counterparty
 
     def __post_init__(self):
         assert self.stage in STAGES, f"unknown stage {self.stage!r}"
@@ -58,14 +64,36 @@ class QualificationRule:
     def structural(self) -> bool:
         return not self.code
 
+    @property
+    def scoped(self) -> bool:
+        return bool(self.sectors or self.counterparty_class)
+
+    def scope_predicate(self) -> Predicate:
+        """`when`, narrowed by the rule's sector and counterparty scope.
+
+        The scope has to live *inside* the predicate, not beside it. `sql_when()` is the
+        set-based path for real volumes, and a scope applied only in Python would mean the
+        batch job silently ran the rule on every taxpayer — the one bug the predicate algebra
+        exists to prevent. `test_pipeline.py` asserts the two agree, government rows included.
+        """
+        parts: list[Predicate] = []
+        if self.sectors:
+            parts.append(is_in("sector", self.sectors))
+        if self.counterparty_class:
+            parts.append(eq("counterparty_class", self.counterparty_class))
+        return All(*parts, self.when) if parts else self.when
+
     def sql_when(self) -> str:
-        """The same test as a WHERE fragment — the set-based path for real volumes."""
-        return self.when.to_sql()
+        """The same test as a WHERE fragment — the set-based path for real volumes.
+
+        `direction` is not included: a batch run partitions by direction, one pass per box.
+        """
+        return self.scope_predicate().to_sql()
 
     def matches(self, row: dict) -> bool:
         if self.direction and row.get("direction") != self.direction:
             return False
-        return self.when.evaluate(row)
+        return self.scope_predicate().evaluate(row)
 
 
 RULES: tuple[QualificationRule, ...] = (
@@ -106,6 +134,25 @@ RULES: tuple[QualificationRule, ...] = (
         label="Clearance lag — invoices delivered in the next period",
         note="Issued within the period but delivered in the next period (tax-point / clearance "
              "lag) — the supply belongs to the following return.",
+    ),
+    # The sector rule the auditors gave us. A supply to a government body is commonly not
+    # recognised until the invoice clears the procurement platform, which can be months after
+    # the transaction period — so the e-invoice sits in this period and the supply belongs to
+    # a later return. Scoped by counterparty rather than applied to everyone, because that is
+    # what makes it correct: the same delay on a commercial customer is not this rule.
+    # It sits after OUT-07 so a straightforward delivery straddle keeps the simpler label.
+    QualificationRule(
+        code="OUT-11",
+        stage="tax-point",
+        action=Action.DEFER_NEXT,
+        direction="sale",
+        counterparty_class="government",
+        when=All(ne("type_code", CREDIT_NOTE), not_null("approval_date"),
+                 gt("approval_date", Col("period_to"))),
+        reason_code="T02",
+        label="Government supplies awaiting platform approval (Etimad)",
+        note="Supplied to a government body and not yet approved on the procurement platform "
+             "at the period end — recognition, and the output VAT, fall in a later return.",
     ),
     QualificationRule(
         code="INP-09",

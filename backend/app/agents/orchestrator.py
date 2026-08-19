@@ -17,7 +17,7 @@ from __future__ import annotations
 
 from .adjudicator import CaseContext, adjudicate
 from .contracts import Adjudication, Entry, Hypothesis, Investigation
-from .detectors import propose
+from .detectors import propose, recomputation
 
 CASE_LEAD = "Case Lead"
 CHALLENGER = "Challenger"
@@ -30,9 +30,12 @@ def _sar(v: float) -> str:
 
 
 def investigate(recon: dict, *, prior_returns: list[dict] | None = None,
-                prior_cases: list[dict] | None = None) -> Investigation:
+                prior_cases: list[dict] | None = None,
+                documents: list[dict] | None = None,
+                recorded: list[dict] | None = None) -> Investigation:
     ctx = CaseContext(recon=recon, prior_returns=prior_returns or [],
-                      prior_cases=prior_cases or [])
+                      prior_cases=prior_cases or [],
+                      documents=documents or [], recorded=recorded or [])
     entries: list[Entry] = []
     seq = 0
 
@@ -53,7 +56,13 @@ def investigate(recon: dict, *, prior_returns: list[dict] | None = None,
 
     # A supported case has nothing to investigate. Saying so plainly beats running the
     # machinery and reporting that no pattern explains a difference that does not exist.
-    if abs(residual) <= recon["materiality"] and recon["purchase"]["state"] != "potential-finding":
+    #
+    # One exception: the auditor-error recomputation (§7) is a check on our own working, and a
+    # case that looks supported *because* a figure was transcribed wrongly is exactly the case
+    # that must not be waved through. If there is anything to recompute, the machinery runs.
+    if (abs(residual) <= recon["materiality"]
+            and recon["purchase"]["state"] != "potential-finding"
+            and not recomputation(ctx)):
         conclusion = ("The declared return is supported by the qualified e-invoice evidence "
                       "within materiality. There is no difference to investigate.")
         add(4, "conclusion", CASE_LEAD,
@@ -78,13 +87,23 @@ def investigate(recon: dict, *, prior_returns: list[dict] | None = None,
 
     by_id = {h.id: h for h in hypotheses}
     confirmed = [a for a in adjudications if a.status == "confirmed"]
+
+    # A confirmed recomputation is a defect in OUR working, not an explanation of the
+    # taxpayer's difference. It carries an amount, so without this it would out-rank the real
+    # hypotheses and "explain" the case with our own transcription error. It is reported
+    # first and separately, because everything downstream of it is unsafe until it is fixed.
+    controls = [a for a in confirmed
+                if by_id[a.hypothesis_id].test.kind == "recomputed-total"]
+    control_ids = {a.hypothesis_id for a in controls}
+    substantive = [a for a in confirmed if a.hypothesis_id not in control_ids]
+
     # A confirmed test that accounts for no SAR (recurrence, magnitude) is corroborating
     # context, not the answer. Only an explanatory hypothesis can lead.
     explanatory = sorted(
-        (a for a in confirmed if abs(a.amount) > 0),
+        (a for a in substantive if abs(a.amount) > 0),
         key=lambda a: (abs(a.amount), CONFIDENCE_RANK[by_id[a.hypothesis_id].confidence]),
         reverse=True)
-    context = [a for a in confirmed if abs(a.amount) == 0]
+    context = [a for a in substantive if abs(a.amount) == 0]
     leading = explanatory[0] if explanatory else None
 
     # ---- round 3: the challenger attacks the leader, so we do not converge too early
@@ -128,8 +147,12 @@ def investigate(recon: dict, *, prior_returns: list[dict] | None = None,
     else:
         conclusion = (f"{leading.explanation} That still leaves {_sar(unexplained)} unaccounted "
                       f"for, which needs a separate explanation.")
+    if controls:
+        # said first, because it is a reason to distrust everything after it
+        conclusion = (" ".join(a.explanation for a in controls) + " " + conclusion)
     add(4, "conclusion", CASE_LEAD, {"leading": leading.hypothesis_id if leading else None,
                                      "explained": explained, "unexplained": unexplained,
+                                     "controls": [a.hypothesis_id for a in controls],
                                      "conclusion": conclusion})
 
     return Investigation(

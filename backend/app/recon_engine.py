@@ -77,8 +77,13 @@ def _enabled_codes(db: Session) -> set[str]:
     return {c for c in coded_rules() if _rule_on(db, c)}
 
 
-def _line_records(invs: list[Invoice], period_from, period_to) -> list[dict]:
-    """Flatten invoices into the tax-subtotal grain the pipeline qualifies."""
+def _line_records(invs: list[Invoice], period_from, period_to, sector: str = "") -> list[dict]:
+    """Flatten invoices into the tax-subtotal grain the pipeline qualifies.
+
+    `sector` and the counterparty columns are carried on every line so a qualification rule
+    can be scoped to them — the auditors were clear that the expected relationship is not
+    the same for a government supply as for a commercial one.
+    """
     rows: list[dict] = []
     for inv in invs:
         for st in inv.subtotals:
@@ -90,6 +95,9 @@ def _line_records(invs: list[Invoice], period_from, period_to) -> list[dict]:
                 "status": inv.status_code,
                 "issue_date": inv.issue_date,
                 "delivery_date": inv.delivery_date,
+                "approval_date": inv.approval_date,
+                "counterparty_class": inv.counterparty_class,
+                "sector": sector,
                 "category": st.category,
                 "rate": st.rate,
                 "taxable_amount": float(st.taxable_amount),
@@ -115,7 +123,7 @@ def _line_invoice_rows(lines) -> list[dict]:
 def _reconstruct(db: Session, *, invs: list[Invoice], declared: float, direction: str,
                  box_code: str, box_label: str, box_title: str, period_from, period_to,
                  responses: list[TaxpayerResponse] | None = None,
-                 ret: VatReturn | None = None, dbox=None,
+                 ret: VatReturn | None = None, dbox=None, sector: str = "",
                  invoices_considered: int, finding_sign: int) -> dict:
     """Qualify, sum, compare. Shared by the output and input boxes.
 
@@ -123,7 +131,7 @@ def _reconstruct(db: Session, *, invs: list[Invoice], declared: float, direction
     -1 where an over-claim is (input VAT).
     """
     enabled = _enabled_codes(db)
-    rows = _line_records(invs, period_from, period_to)
+    rows = _line_records(invs, period_from, period_to, sector)
     lines = qualify(rows, enabled, direction)
     comp = compose(lines, enabled, direction)
 
@@ -277,7 +285,7 @@ def _reconstruct_input(db: Session, tp, ret: VatReturn | None, period_from, peri
         box_code=BOX_PURCHASE, box_label="Standard-rated purchases",
         box_title="Standard-rated purchases (input VAT)",
         period_from=period_from, period_to=period_to, ret=ret, dbox=pbox,
-        invoices_considered=considered, finding_sign=-1,
+        sector=tp.ind_sector, invoices_considered=considered, finding_sign=-1,
     )
 
 
@@ -310,7 +318,7 @@ def reconcile_case(db: Session, case_id: str, *, persist: bool = True) -> dict:
         box_code=BOX_SALES, box_label="Standard-rated sales",
         box_title="Standard-rated sales VAT",
         period_from=case.period_from, period_to=case.period_to,
-        responses=list(responses), ret=ret, dbox=dbox,
+        responses=list(responses), ret=ret, dbox=dbox, sector=tp.ind_sector,
         invoices_considered=len(invs), finding_sign=1,
     )
     residual, state = result["residual"], result["state"]

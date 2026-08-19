@@ -120,6 +120,9 @@ RULE_TAXONOMY: dict[str, tuple[str, str, str]] = {
     "OUT-08": (KIND_MISTAKE, "population", "S09"),
     "OUT-09": (KIND_MISTAKE, "adjustment", "R04"),
     "OUT-10": (KIND_MISTAKE, "category", "R10"),
+    # from the auditor session: government supplies recognised on Etimad approval, which can
+    # fall months after the transaction period. A timing explanation, not a taxpayer error.
+    "OUT-11": (KIND_EXPLANATION, "tax-point", "T02"),
     # ---- Input
     "INP-01": (KIND_MISTAKE, "status", "R08"),
     "INP-02": (KIND_MISTAKE, "category", "A02"),

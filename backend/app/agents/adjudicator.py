@@ -22,9 +22,20 @@ class CaseContext:
     recon: dict                                   # reconcile_case output
     prior_returns: list[dict] = field(default_factory=list)   # {period_from, period_to, vat_amount}
     prior_cases: list[dict] = field(default_factory=list)     # {case_id, root_cause_code, result}
+    # documents the taxpayer supplied, as extracted: {id, filename, columns, rows}
+    documents: list[dict] = field(default_factory=list)
+    # figures the AUDITOR keyed in by hand: {seq, label, amount, doc_name}
+    recorded: list[dict] = field(default_factory=list)
 
     def box(self, which: str) -> dict:
         return self.recon if which == "output" else self.recon["purchase"]
+
+    def document(self, ref) -> dict | None:
+        """Find a supplied document by id or by filename."""
+        for d in self.documents:
+            if d.get("id") == ref or d.get("filename") == ref:
+                return d
+        return None
 
 
 def _close(a: float, b: float, tol: float = TOLERANCE) -> bool:
@@ -181,6 +192,62 @@ def _historical_magnitude(h: Hypothesis, ctx: CaseContext) -> Adjudication:
                         explanation="The declared figure is in line with this taxpayer's history.")
 
 
+def _recomputed_total(h: Hypothesis, ctx: CaseContext) -> Adjudication:
+    """§7's second line of defence: check the auditor's own arithmetic.
+
+    The auditors raised two sources of error, not one. A taxpayer may key SAR 10,000 for SAR
+    1,000 — the decimal-shift test. But an auditor totalling ten invoices by hand may record
+    SAR 900 where the documents say SAR 1,000, and nothing in the case would ever catch it,
+    because every downstream figure inherits the mistake.
+
+    So this recomputes the total from the source rows and compares it with what was recorded.
+    "Confirmed" here means a discrepancy exists — the hypothesis is that the recorded figure is
+    wrong, and confirming it is a finding against our own working, not against the taxpayer.
+    """
+    params = h.test.params
+    recorded = float(params.get("recorded", 0.0))
+    column = params.get("column", "vat_amount")
+    doc = ctx.document(params.get("document_id", params.get("document", "")))
+    if doc is None:
+        return Adjudication(hypothesis_id=h.id, status="insufficient-evidence",
+                            explanation="The source document for the recorded figure is not on file.")
+    columns = doc.get("columns") or []
+    if column not in columns:
+        return Adjudication(
+            hypothesis_id=h.id, status="insufficient-evidence",
+            detail={"filename": doc.get("filename"), "columns": columns},
+            explanation=(f"{doc.get('filename')} has no '{column}' column, so the recorded "
+                         f"figure cannot be recomputed from it."))
+    idx = columns.index(column)
+    values, counted = [], 0
+    for row in doc.get("rows") or []:
+        v = row[idx] if idx < len(row) else None
+        if isinstance(v, (int, float)) and not isinstance(v, bool):
+            values.append(float(v)); counted += 1
+        else:
+            try:
+                values.append(float(str(v).replace(",", "").strip())); counted += 1
+            except (TypeError, ValueError):
+                continue
+    computed = round(sum(values), 2)
+    diff = round(recorded - computed, 2)
+    if _close(recorded, computed):
+        return Adjudication(
+            hypothesis_id=h.id, status="refuted", amount=0.0,
+            detail={"recorded": recorded, "computed": computed, "rows": counted,
+                    "filename": doc.get("filename")},
+            explanation=(f"The recorded SAR {recorded:,.2f} agrees with the SAR {computed:,.2f} "
+                         f"across {counted} rows of {doc.get('filename')}."))
+    return Adjudication(
+        hypothesis_id=h.id, status="confirmed", amount=round(abs(diff), 2),
+        detail={"recorded": recorded, "computed": computed, "difference": diff,
+                "rows": counted, "filename": doc.get("filename")},
+        explanation=(f"{counted} rows of {doc.get('filename')} total SAR {computed:,.2f}, but "
+                     f"SAR {recorded:,.2f} was recorded against this case — a difference of SAR "
+                     f"{diff:,.2f}. Correct the recorded figure before it carries into the "
+                     f"conclusion."))
+
+
 _TESTS = {
     "decimal-shift": _decimal_shift,
     "digit-transposition": _digit_transposition,
@@ -190,4 +257,5 @@ _TESTS = {
     "rate-misapplication": _rate_misapplication,
     "recurrence": _recurrence,
     "historical-magnitude": _historical_magnitude,
+    "recomputed-total": _recomputed_total,
 }

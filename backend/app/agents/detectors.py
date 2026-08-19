@@ -17,6 +17,7 @@ from .contracts import Hypothesis, TestSpec
 RECONSTRUCTION = "Reconstruction Analyst"
 FORENSICS = "Data-Entry Forensics"
 HISTORY = "Historical Pattern"
+RECOMPUTE = "Recomputation Check"
 
 
 def _material(ctx: CaseContext, box: str) -> bool:
@@ -93,7 +94,39 @@ def historical_pattern(ctx: CaseContext) -> list[Hypothesis]:
     return out
 
 
-AGENTS = (reconstruction_analyst, data_entry_forensics, historical_pattern)
+def recomputation(ctx: CaseContext) -> list[Hypothesis]:
+    """The second line of defence — over our own working, not the taxpayer's.
+
+    §7 named two error sources. The taxpayer keying SAR 10,000 for SAR 1,000 is covered by the
+    forensics agent above. The other is ours: an auditor totalling supplied documents by hand
+    and recording SAR 900 where they add to SAR 1,000. Nothing downstream would ever notice,
+    because every later figure inherits it.
+
+    So wherever a figure has been recorded against this case by hand and the document it came
+    from is on file, propose recomputing it. The adjudicator does the arithmetic.
+    """
+    out: list[Hypothesis] = []
+    for n, rec in enumerate(ctx.recorded, start=1):
+        doc = ctx.document(rec.get("doc_name", ""))
+        if doc is None or not rec.get("amount"):
+            continue
+        column = next((c for c in ("vat_amount", "taxable_amount", "amount", "gross_amount")
+                       if c in (doc.get("columns") or [])), None)
+        if column is None:
+            continue
+        out.append(Hypothesis(
+            id=f"RC-{n:02d}", agent=RECOMPUTE, reason_code="A09", confidence="high",
+            claim="A figure recorded against this case by hand can be recomputed from the "
+                  "document it was taken from; if the two disagree, the error is ours and "
+                  "every later figure inherits it.",
+            test=TestSpec(kind="recomputed-total", box="output",
+                          params={"recorded": float(rec["amount"]), "column": column,
+                                  "document_id": doc.get("id")}),
+            evidence_refs=[str(doc.get("filename", ""))]))
+    return out
+
+
+AGENTS = (reconstruction_analyst, data_entry_forensics, historical_pattern, recomputation)
 
 
 def propose(ctx: CaseContext) -> list[Hypothesis]:

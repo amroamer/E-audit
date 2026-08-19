@@ -68,7 +68,7 @@ def test_wired_rules_are_classified_as_explanations():
 
 
 def test_each_direction_gets_its_own_rules():
-    assert {r.code for r in rules_in_order("sale") if r.code} == {"COR-01", "OUT-07"}
+    assert {r.code for r in rules_in_order("sale") if r.code} == {"COR-01", "OUT-07", "OUT-11"}
     assert {r.code for r in rules_in_order("purchase") if r.code} == {"COR-02", "INP-09"}
 
 

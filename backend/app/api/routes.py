@@ -142,9 +142,25 @@ def investigate_case(case_id: str, db: Session = Depends(get_db)):
          "result": pc.audit_result_type, "action": pc.action_taken}
         for pc in db.scalars(
             select(AuditCase).where(AuditCase.taxpayer_id == c.taxpayer_id,
-                                    AuditCase.case_id != case_id)).all()
+                                    AuditCase.case_id != case_id,
+                                    AuditCase.scenario_key != "corpus")).all()
     ]
-    return investigate(recon, prior_returns=prior_returns, prior_cases=prior_cases).model_dump()
+    # §7's second line: whatever the taxpayer supplied, and whatever figure an auditor keyed in
+    # against it, so the adjudicator can re-add the source and check our own arithmetic.
+    docs = [
+        {"id": d.id, "filename": d.filename,
+         "columns": (d.content or {}).get("columns", []),
+         "rows": (d.content or {}).get("rows", [])}
+        for d in req_service.documents(db, case_id)
+    ]
+    recorded = [
+        {"seq": r.seq, "label": r.label, "amount": float(r.amount), "doc_name": r.doc_name}
+        for r in db.scalars(
+            select(TaxpayerResponse).where(TaxpayerResponse.case_id == case_id)
+            .order_by(TaxpayerResponse.seq)).all()
+    ]
+    return investigate(recon, prior_returns=prior_returns, prior_cases=prior_cases,
+                       documents=docs, recorded=recorded).model_dump()
 
 
 class RulePatch(BaseModel):

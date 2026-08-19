@@ -23,6 +23,7 @@ TestKind = Literal[
     "rate-misapplication",    # the difference equals base x (rate a - rate b)
     "recurrence",             # this taxpayer has been found with this cause before
     "historical-magnitude",   # the declaration is out of line with this taxpayer's own history
+    "recomputed-total",       # the figure the AUDITOR recorded vs the source documents (§7)
 ]
 
 Status = Literal["confirmed", "refuted", "insufficient-evidence"]

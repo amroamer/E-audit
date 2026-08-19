@@ -198,6 +198,27 @@ PROFILES: dict[str, dict] = {
              "Instruments and appliances used in medical sciences", 1_900_000, 0, 285_000, False),
         ],
     },
+    "300044400600003": {  # Dhahran Infrastructure Contracting — government timing
+        "legal_form": "LLC",
+        "economic_activities": [
+            {"isic": "4210", "description": "Construction of roads and railways", "primary": True},
+            {"isic": "4220", "description": "Construction of utility projects", "primary": False},
+        ],
+        "related_parties": [],
+        "employee_count": 1_680, "branch_count": 4, "pos_registered": False,
+        "importer_flag": True, "exporter_flag": False,
+        "einvoicing_onboarded": date(2022, 1, 1),
+        "filing_compliance": {"returns_due": 12, "returns_filed": 12, "filed_late": 0,
+                              "avg_days_late": 0, "payments_late": 0, "outstanding_balance": 0.0},
+        "financials": [
+            (2023, 62_000_000, 47_500_000, 14_500_000, 3_900_000, 88_000_000),
+            (2024, 68_400_000, 52_800_000, 15_600_000, 4_150_000, 92_600_000),
+        ],
+        "customs": [
+            ("IM-2025-009012", date(2025, 1, 30), "import", "Dammam Port", "8429",
+             "Self-propelled bulldozers and excavators", 5_600_000, 280_000, 840_000, True),
+        ],
+    },
 }
 
 # ---------------------------------------------------------------------------- referrals
@@ -273,6 +294,15 @@ REFERRALS: dict[str, tuple] = {
           "value": -89.7, "weight": 0.45},
          {"code": "MAGNITUDE_ORDER", "label": "Order-of-magnitude step change", "value": 1.0,
           "weight": 0.15}],
+    ),
+    "CASE-2025-0488": (
+        49.0, 60.0,
+        "Cleared e-invoices for the period exceed the declared output box. The counterparty on "
+        "the excess is a government body.",
+        [{"code": "EINV_OUTPUT_DELTA", "label": "E-invoice vs declared output VAT",
+          "value": 360_000.0, "weight": 0.60},
+         {"code": "GOVERNMENT_COUNTERPARTY_SHARE", "label": "Share of period supplies to "
+          "government bodies", "value": 100.0, "weight": 0.40}],
     ),
     "CASE-2024-0310": (
         71.0, 60.0,

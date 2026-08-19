@@ -20,13 +20,15 @@ DEADLINE = date(2025, 4, 30)
 
 def _sale_invoice(tp: Taxpayer, seq: int, base: float, rate: int, issue: date,
                   type_code: int = 388, delivery: date | None = None,
-                  status: str = "cleared") -> Invoice:
+                  status: str = "cleared", counterparty_class: str = "",
+                  approval: date | None = None) -> Invoice:
     vat = round(base * rate / 100, 2)
     inv = Invoice(
         uuid=f"{tp.vat_registration_number}-S-{seq:04d}",
         taxpayer_id=tp.id, invoice_type_code=type_code, type_flags="standard",
         direction="sale", issue_date=issue, delivery_date=delivery or issue,
         status_code=status, seller_vat=tp.vat_registration_number,
+        counterparty_class=counterparty_class, approval_date=approval,
         tax_exclusive_amount=base, tax_amount=vat,
     )
     inv.subtotals.append(InvoiceTaxSubtotal(category="S", rate=rate,
@@ -435,6 +437,68 @@ def scenario_hail_manual_entry(db: Session) -> None:
     ))
 
 
+def scenario_dhahran_government(db: Session) -> None:
+    """Sector timing: the whole apparent gap is government supplies awaiting Etimad approval.
+
+    The auditors raised this one directly. A generic "e-invoices total minus return total"
+    reports SAR 360,000 of under-declared output here, and there is none: the supplies are real,
+    the invoices are cleared, and the taxpayer is right not to have declared them yet, because
+    recognition waits on approval through the government procurement platform — which landed in
+    May, after the quarter closed.
+
+    It is the case that makes the point of qualify-then-sum, and of scoping a rule to a
+    counterparty rather than applying it to everyone: the same delay on a commercial customer
+    would not be OUT-11, and the reconstruction would be wrong to defer it.
+    """
+    tp = Taxpayer(
+        vat_registration_number="300044400600003", partner="BP100008",
+        id_number="7004440006", name="Dhahran Infrastructure Contracting Co.",
+        ind_sector="Construction", business_size="large",
+        accounting_method="accrual", resident_flag=True, bp_type="org",
+        reg_from=date(2015, 8, 1),
+    )
+    db.add(tp); db.flush()
+
+    ret = VatReturn(
+        form_number="VAT-2025Q1-DH", taxpayer_id=tp.id,
+        period_from=PERIOD_FROM, period_to=PERIOD_TO, data_version=1, current_flag=True,
+        submission_date=date(2025, 4, 25), filing_deadline=DEADLINE,
+        sadad_bill_number="SADAD-DH-2025Q1", sadad_paid=True,
+        total_vat_due=1_500_000, net_due_vat=1_380_000,
+    )
+    ret.boxes += [
+        _box("standard_rate_sales", "Standard-rated sales", "sale",
+             10_000_000, 1_500_000, rate=15, category="S"),
+        _box("standard_rate_purchase", "Standard-rated purchases", "purchase",
+             800_000, 120_000, rate=15, category="S"),
+    ]
+    db.add(ret)
+
+    # 20 certified in-period (VAT 75,000 ea) → 1,500,000, ties to the declared box
+    for i in range(20):
+        db.add(_sale_invoice(tp, i + 1, 500_000, 15, date(2025, 2, 10),
+                             counterparty_class="government",
+                             approval=date(2025, 3, 5)))
+    # 6 issued in-period, approved on the platform 12 May (VAT 60,000 ea) → 360,000 next period
+    for i in range(6):
+        db.add(_sale_invoice(tp, 900 + i, 400_000, 15, date(2025, 3, 20),
+                             counterparty_class="government",
+                             approval=date(2025, 5, 12)))
+
+    for i in range(8):
+        db.add(_purchase_invoice(tp, i + 1, 100_000, 15, date(2025, 2, 14)))   # VAT 15,000 ea
+
+    db.add(AuditCase(
+        case_id="CASE-2025-0488", taxpayer_id=tp.id, form_number=ret.form_number,
+        period_from=PERIOD_FROM, period_to=PERIOD_TO,
+        case_reason_code="EINV_VS_RETURN", risk_category="OUTPUT_UNDERDECLARED",
+        vat_priority="MEDIUM", audit_type="desk", status="referred",
+        referral_date=date.today() - timedelta(days=16),
+        sla_due=date.today() + timedelta(days=38),
+        scenario_key="sector-timing",
+    ))
+
+
 def build_all(db: Session) -> None:
     scenario_alfaisaliah(db)
     scenario_nael_clean(db)
@@ -443,3 +507,4 @@ def build_all(db: Session) -> None:
     scenario_najd_underdeclared(db)
     scenario_yanbu_overdeclared(db)
     scenario_hail_manual_entry(db)
+    scenario_dhahran_government(db)

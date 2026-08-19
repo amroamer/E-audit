@@ -15,9 +15,11 @@ ALL_ON = {"COR-01", "COR-02", "OUT-07", "INP-09"}
 
 
 def line(tax, *, type_code=388, delivery=date(2025, 1, 10), category="S", rate=15,
-         status="cleared", direction="sale"):
+         status="cleared", direction="sale", counterparty_class="", approval=None,
+         sector=""):
     return {
         "type_code": type_code, "delivery_date": delivery, "issue_date": date(2025, 1, 10),
+        "approval_date": approval, "counterparty_class": counterparty_class, "sector": sector,
         "category": category, "rate": rate, "status": status, "direction": direction,
         "tax_amount": float(tax), "taxable_amount": float(tax) / 0.15,
         "period_from": PERIOD_FROM, "period_to": PERIOD_TO, "invoice_uuid": f"INV-{tax}",
@@ -106,14 +108,28 @@ def test_input_box_mirrors_the_output_box():
 
 # ------------------------------------------------- predicate ⇄ SQL equivalence
 def test_predicates_and_sql_select_the_same_lines():
-    """The scale path: the same rule must select the same rows in Python and in SQL."""
-    rows = hero_rows()
+    """The scale path: the same rule must select the same rows in Python and in SQL.
+
+    Government rows are included deliberately. A rule scoped to a counterparty class whose
+    scope lived outside the predicate would pass in Python and, in a batch run, fire on every
+    taxpayer — so the scope belongs inside `sql_when()`, and this is what proves it.
+    """
+    rows = hero_rows() + [
+        # supplied to a government body, approved after the period end -> OUT-11 territory
+        line(60_000, counterparty_class="government", approval=date(2025, 5, 12)),
+        line(60_000, counterparty_class="government", approval=date(2025, 3, 5)),
+        # the same late approval on a commercial customer is NOT this rule
+        line(60_000, approval=date(2025, 5, 12)),
+    ]
     con = sqlite3.connect(":memory:")
-    con.execute("CREATE TABLE line (type_code INT, delivery_date TEXT, category TEXT, "
+    con.execute("CREATE TABLE line (type_code INT, delivery_date TEXT, approval_date TEXT, "
+                "counterparty_class TEXT, sector TEXT, category TEXT, "
                 "rate INT, status TEXT, direction TEXT, period_to TEXT, tax_amount REAL)")
     con.executemany(
-        "INSERT INTO line VALUES (?,?,?,?,?,?,?,?)",
+        "INSERT INTO line VALUES (?,?,?,?,?,?,?,?,?,?,?)",
         [(r["type_code"], r["delivery_date"].isoformat() if r["delivery_date"] else None,
+          r["approval_date"].isoformat() if r.get("approval_date") else None,
+          r.get("counterparty_class", ""), r.get("sector", ""),
           r["category"], r["rate"], r["status"], r["direction"],
           r["period_to"].isoformat(), r["tax_amount"]) for r in rows])
 

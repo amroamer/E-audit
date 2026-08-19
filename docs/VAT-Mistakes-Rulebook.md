@@ -40,6 +40,7 @@
 | OUT-08 | Output VAT not charged on deemed/nominal supplies | Output | No (compliance/valuation) | Medium |
 | OUT-09 | Excessive / fictitious credit notes suppressing output | Output | Yes → Standard_Rate_Sales (netting) | High |
 | OUT-10 | Supplies to connected persons below fair market value | Output | No (valuation) | Medium |
+| OUT-11 | Government supplies recognised on platform approval (Etimad) | Output | Yes → Standard_Rate_Sales_VAT (timing) | Medium |
 | INP-01 | Input VAT claimed with no valid cleared tax invoice | Input | Yes → Standard_Rate_Purchase_VAT | High |
 | INP-02 | Input VAT on blocked / non-deductible items | Input | Yes → Standard_Rate_Purchase_VAT | Medium (High fleet/entertainment) |
 | INP-03 | No partial-exemption apportionment | Input | Yes → Standard_Rate_Purchase_VAT | High |
@@ -203,6 +204,16 @@
 - **severity:** Medium.
 - **confirming_evidence:** Ownership/relationship data + arm's-length price. Next-best: related-party transaction listing.
 - **ai_assist:** Read item descriptions for like-for-like price comparison.
+
+**OUT-11 — Government supplies recognised on platform approval (Etimad)** *(CP-MASTER for counterparty class)*
+- **taxpayer_mistake:** Not a mistake — a legitimate sector timing difference. Supplies to government bodies are commonly not recognised until the invoice is approved on the government procurement platform, which can fall months after the transaction period. The e-invoice sits in the earlier period; the return reports the supply in the later one.
+- **why_it_happens:** Contractual and platform mechanics, not taxpayer behaviour. The auditors raised it directly: a generic e-invoices-total minus return-total comparison reports these as under-declarations, and they are not.
+- **detection:** For invoices whose counterparty is classified as government, compare the platform approval date with the period end. Where approval falls after `Period_To`, the supply belongs to the following return: deferred output = Σ `TaxAmount` over those documents. Scope split vs OUT-07: OUT-07 is delivery-date straddle on any counterparty; OUT-11 is approval-date straddle on a government counterparty. One document belongs to exactly one path.
+- **data_used:** INVOICES (buyer party, IssueDate, approval/clearance date), TAXSUBTOTAL; **CP-MASTER** counterparty classification; case `Period_From`/`Period_To`.
+- **explains_gap:** Yes → Standard_Rate_Sales_VAT (timing — the supply arrives in the next return).
+- **severity:** Medium.
+- **confirming_evidence:** Platform approval record, or the contract and the certified payment application. Next-best: the taxpayer's own reconciliation of issued invoices to approved invoices.
+- **ai_assist:** Read contract and approval correspondence to confirm the recognition trigger where the platform record is unavailable.
 
 ---
 
