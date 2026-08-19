@@ -7,20 +7,32 @@ Guidance for Claude Code (and humans) working in this repository.
 **E-AUDIT** is an AI-powered **VAT Audit Agent for ZATCA** (the Saudi Zakat, Tax
 and Customs Authority), built as a stakeholder demo / proof-of-concept.
 
-It begins **after** an upstream risk engine has flagged a taxpayer + period. From
-there it:
+It begins **after** an upstream risk engine has flagged a taxpayer + period, and
+runs the case from there to a drafted conclusion. Five stages
+(`backend/app/casefile/orchestrator.py`):
 
-1. **Reconstructs** the expected VAT return from the taxpayer's FATOORA
-   e-invoices (aggregating `InvoiceTaxSubtotal` by tax category × rate ×
-   direction × period).
-2. **Reconciles** the reconstruction against the declared return.
-3. **Explains** legitimate differences with deterministic rules (credit notes,
-   clearance-lag timing, taxpayer-supplied evidence) down to a true **residual**.
-4. **Recommends** the next best action and **drafts an auditor report** for a
-   human to approve.
+1. **Intake** — assemble the *dossier*: everything ZATCA already holds on this
+   taxpayer and period (returns, e-invoices, imports/exports, financials, prior
+   audits, filing history, the structured risk referral).
+2. **Planning** — retrieve *precedent* (what comparable closed cases turned out
+   to be, and which evidence actually closed them) and build a request plan.
+   Anything the Authority already holds is dropped, with the reason attached.
+3. **Request & response** — draft the letter, then compare what arrives against
+   what was asked for: missing columns, blank mandatory fields, period coverage,
+   totals that do not foot. Draft the follow-up from the gaps alone.
+4. **Substantive review** — reconstruct the expected VAT return from the FATOORA
+   e-invoices, reconcile it against the declared return, explain legitimate
+   differences down to a true **residual**, and let the investigation agents
+   propose root causes for a deterministic adjudicator to settle.
+5. **Closure** — draft the audit report and the taxpayer letter for approval.
 
 Both the **output** (standard-rated sales) and **input** (standard-rated
 purchases) VAT boxes are reconstructed as separate reconciliation bridges.
+
+The stage machine is **derived, never stored** — every state follows from the
+case's own data — and **no stage advances by itself**. A case the internal
+evidence settles skips stages 2 and 3 entirely and reports that the taxpayer was
+never contacted, which is the product's central claim.
 
 ## The core invariant (do not break this)
 
@@ -34,12 +46,21 @@ purchases) VAT boxes are reconstructed as separate reconciliation bridges.
 - Every drafted sentence is checked by `verify_claims` / `verify_conclusion`
   (`backend/app/llm/verify.py`) **before display**; on failure there is a
   corrective retry, then an honest deterministic fallback with a status badge.
+- **Outbound letters** (request, follow-up, verdict) quote *documents* rather
+  than reconciliation scalars, so the placeholder model does not fit them.
+  `verify_correspondence` enforces the same rule in substance: every numeric
+  literal in the draft must already appear in the engine-authored facts block.
+  Claude may repeat a figure it was handed; it may not introduce one.
 - **One exception:** the taxpayer-letter reader (`llm.read_letter`) returns the
   single figure the *letter itself states*, as a **draft** the auditor confirms
   in the UI before it is committed.
 
 All Claude access is funneled through the single boundary
 `backend/app/llm/service.py`. Nothing else imports `anthropic`.
+
+Every deterministic fallback is **complete, sendable output**, not a stub —
+degrading to it costs polish, never correctness. That is why the whole app,
+including the letters and the investigation, works with no API key.
 
 ## Privacy / safety
 
@@ -57,26 +78,42 @@ React + TypeScript (Vite) · FastAPI · PostgreSQL (schemas `core` + `recon`).
 
 ```
 backend/app/
+  casefile/            # the five-stage lifecycle machine (derived, never stored)
+  dossier/             # everything ZATCA already holds, assembled in one call
+  precedent/           # deterministic retrieval + tally over labelled closed cases
+  requests/            # the request/response loop:
+                       #   catalog.py      what an auditor can ask for (+ satisfied_by)
+                       #   planner.py      what to ask for — and what NOT to (§1)
+                       #   extract.py      xlsx/csv -> columns, rows, stated totals
+                       #   completeness.py requested vs received, deterministically
+                       #   service.py      drives the rounds; recomputes gaps each pass
+  pipeline/            # predicates.py (Python ⇄ SQL algebra) + rules.py + run.py
   recon_engine.py      # deterministic reconstruction + bridge (output & input VAT)
-  reconciling_items.py # declarative registry of the bridge's lines — wire a rule = one entry
   rule_taxonomy.py     # explanation/mistake/risk + precedence stage + difference reason codes
+  risk_indicators.py   # the risk-engine vocabulary + which internal source to consult first
   scope.py             # what this PoC reconciles, and what it deliberately leaves out
   priority.py          # composite case prioritization (exposure/deadline/history/quick-win)
+  agents/              # contracts, adjudicator, detectors, orchestrator (rounds),
+                       # precedent_analyst, correspondence (request/follow-up/verdict)
   api/routes.py        # FastAPI endpoints
-  models/              # SQLAlchemy models: core.py, config_tables.py, recon.py
+  models/              # core.py, dossier.py, casework.py, config_tables.py, recon.py
   llm/                 # the ONLY Claude boundary: service, prompts, verify, schemas
-  seed/                # scenarios.py (demo taxpayers) + seed.py (drop/create/load)
+  seed/                # scenarios.py + dossier_seed.py + corpus.py + casework_seed.py
 frontend/src/
-  pages/               # Overview, Reconciliation, Rules
-  components/          # AI panels, bridge, taxpayer-response + letter reader
+  pages/               # Overview, Dossier, Casework, Reconciliation, Rules
+  components/          # lifecycle rail, case tabs, precedent, AI panels, bridge, letters
   api.ts, ai/          # typed API + SSE streaming helpers
-docs/                  # VAT Mistakes Rulebook (65 rules) + rendered page
+docs/                  # VAT Mistakes Rulebook (66 rules) + rendered page
 portal.html            # standalone no-backend build of the workbench (see below)
 ```
 
+A case is worked left to right through three tabs — **Dossier** (what we hold),
+**Casework** (what we ask for and chase), **Reconciliation** (what it means) —
+with the lifecycle rail on each showing where the case is and whose move it is.
+
 ## The rule taxonomy (do not collapse this back)
 
-The rulebook's 65 entries are three different kinds of object, and the engine
+The rulebook's 66 entries are three different kinds of object, and the engine
 depends on the distinction:
 
 - **explanation** — a legitimate reason the return differs from the e-invoices
@@ -90,10 +127,18 @@ Each rule also carries a `stage` (its place in the population → identity → s
 precedence) and a `reason_code` describing *which class of difference* it is about.
 Reason codes describe the phenomenon; `kind` carries the verdict.
 
-Bridge lines are declared in `reconciling_items.py`, not hard-coded in the engine.
-**Wiring a rule into the live engine means appending one `ReconcilingItem`** — the
-engine, the API's `wired` flag and the UI's "● live" badge all follow from it.
+Rules are declared in `pipeline/rules.py`, not hard-coded in the engine.
+**Wiring a rule into the live engine means appending one `QualificationRule`** —
+the engine, the API's `wired` flag and the UI's "● live" badge all follow from it.
 Guarded by `backend/tests/test_rules.py`.
+
+A rule may be **scoped** by `direction`, `sectors` or `counterparty_class`,
+because the expected relationship is not the same for every taxpayer — a
+government supply may not be recognised until it clears the procurement platform,
+months after the transaction period (OUT-11). The scope lives *inside* the
+predicate, so it travels into `sql_when()`: a scope applied only in Python would
+mean the batch path silently ran the rule on every taxpayer, which is the one bug
+the predicate algebra exists to prevent. `test_pipeline.py` asserts the two agree.
 
 ## The standalone portal
 
@@ -102,8 +147,19 @@ database, no build step. It ports `theme.css` verbatim and re-implements the
 deterministic core in JavaScript over the seeded demo data, so the bridge, the
 rulebook toggles and the taxpayer-response loop still recompute in the browser.
 Its AI panels show the same deterministic fallbacks the app renders with no API
-key. If you change the engine, the seed data or the rule taxonomy, regenerate it —
-the JS port is validated field-by-field against the Python engine's output.
+key.
+
+Its rule is **port what the user can change, embed what they cannot.** The
+reconciliation, priority, investigation and the lifecycle rail all move when a
+rule is toggled or a taxpayer response is recorded, so they are ported to JS. The
+dossier, precedent and the seeded correspondence round cannot move without a
+backend — there is nothing to upload and no corpus to re-search — so the Python
+output is embedded exactly. That is precision, not a shortcut, and the split
+should stay explicit.
+
+If you change the engine, the seed data or the rule taxonomy, regenerate it — the
+JS port is validated field-by-field against the Python engine's output (currently
+7,432 comparisons, 0 failures).
 
 ## Running locally
 
@@ -155,7 +211,21 @@ Open http://localhost:5174.
   brands.
 - Frontend build check: `npm run build` (runs `tsc --noEmit` + Vite build).
 - Backend syntax check: `python -m compileall -q app`.
-- Guard tests: `pytest backend/tests`.
+- Guard tests: `pytest backend/tests` (133 at last count).
 - When editing the engine, remember: **the numbers live in Python, the words
   live in Claude.** If a change would have Claude produce a figure, route the
-  figure through a placeholder instead.
+  figure through a placeholder instead — or, for outbound letters, put it in the
+  facts block so `verify_correspondence` will accept it being repeated.
+- **Deterministic first, model second.** Anything checkable is a check: column
+  presence, blank fields, period coverage, whether a total adds up. Only
+  genuinely judgement-shaped questions go to a model, and they are checked after.
+
+## Inputs still needed from the auditors
+
+- The **audit report template** — the closure drafter should target the real
+  layout, not ours.
+- A **real (redacted) information request** — it defines `required_columns`, and
+  the completeness checker is only as good as that spec.
+- The **risk indicator codes** the engine actually emits. Ours in
+  `risk_indicators.py` are placeholders, and the precedent corpus is generated
+  against them.
