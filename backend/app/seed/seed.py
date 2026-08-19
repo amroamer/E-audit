@@ -8,8 +8,9 @@ from __future__ import annotations
 from ..db import engine, create_schemas, SessionLocal, Base
 from ..models import Rule, Assumption, CodeDictionary
 from ..rule_taxonomy import REASON_CODES
+from ..risk_indicators import INDICATORS
 from .rulebook_loader import parse_rules
-from . import scenarios
+from . import scenarios, dossier_seed, corpus
 
 ASSUMPTIONS = [
     ("return.total_is_netted", "true", "Declared Total is final; _Adjustment already included."),
@@ -29,8 +30,6 @@ CODE_DICTIONARY = [
     ("tax_category", "Z", "Zero-rated", "0% (exports, qualifying supplies)", False),
     ("tax_category", "E", "Exempt", "No VAT, no input recovery", False),
     ("tax_category", "O", "Out of scope", "Not subject to VAT", False),
-    ("case_reason_code", "EINV_GT_RETURN", "E-invoices exceed return", "Reconstructed > declared", True),
-    ("case_reason_code", "SECTOR_RATIO_OUTLIER", "Sector ratio outlier", "Placeholder — awaiting ZATCA list", True),
 ]
 
 
@@ -58,11 +57,20 @@ def run() -> None:
             db.add(CodeDictionary(code_set="reason_code", code=code, label=label,
                                   meaning=f"{group.capitalize()} difference", is_placeholder=True))
 
-        scenarios.build_all(db)
+        # risk-engine indicators — the vocabulary the upstream engine speaks. Ours, pending
+        # the real emission list, hence flagged as placeholders.
+        for ind in INDICATORS:
+            db.add(CodeDictionary(code_set="risk_indicator", code=ind.code, label=ind.label,
+                                  meaning=ind.description, is_placeholder=True))
+
+        scenarios.build_all(db)      # the seven hand-built demo narratives
+        dossier_seed.enrich_all(db)  # profiles, financials, customs, structured referrals
+        n_corpus = corpus.build(db)  # the labelled closed-case population precedent searches
         db.commit()
         print(f"Seeded {len(rules)} rules, {len(ASSUMPTIONS)} assumptions, "
               f"{len(CODE_DICTIONARY)} codes, {len(REASON_CODES)} reason codes, "
-              f"and demo cases (finding + clean).")
+              f"{len(INDICATORS)} risk indicators, demo cases (finding + clean), "
+              f"and {n_corpus} closed cases in the precedent corpus.")
     except Exception:
         db.rollback()
         raise

@@ -6,6 +6,11 @@ from .core import (  # noqa: F401
     InvoiceTaxSubtotal,
     AuditCase,
 )
+from .dossier import (  # noqa: F401
+    RiskReferral,
+    CustomsDeclaration,
+    FinancialSummary,
+)
 from .config_tables import Rule, Assumption, CodeDictionary  # noqa: F401
 from .recon import (  # noqa: F401
     CaseRecon,

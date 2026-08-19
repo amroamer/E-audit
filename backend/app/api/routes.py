@@ -11,6 +11,7 @@ from ..priority import score_case
 from ..pipeline.rules import coded_rules as wired_codes
 from ..rule_taxonomy import REASON_CODES, STAGES, KINDS
 from ..scope import scope_card
+from ..dossier import collect as collect_dossier
 from ..llm.service import llm
 from ..config import settings
 
@@ -76,6 +77,35 @@ def list_reason_codes():
 def scope():
     """What this PoC reconciles, and what it deliberately leaves out."""
     return scope_card()
+
+
+@router.get("/cases/{case_id}/dossier")
+def case_dossier(case_id: str, db: Session = Depends(get_db)):
+    """Everything ZATCA already holds on this taxpayer and period, in one call.
+
+    The auditors start a case by investigating internal data — returns, e-invoicing, imports and
+    exports, history, prior audits, financials — and only then decide what is genuinely missing.
+    Doing that today means opening several systems. This is that step, assembled.
+    """
+    try:
+        return collect_dossier(db, case_id)
+    except LookupError:
+        raise HTTPException(404, "case not found")
+
+
+@router.get("/cases/{case_id}/precedent")
+def case_precedent(case_id: str, db: Session = Depends(get_db)):
+    """What comparable closed cases turned out to be, and which evidence actually closed them.
+
+    Deterministic retrieval over labelled closed cases — no model, no embeddings. Every figure
+    is a count or a median taken here, which is what makes the ranked list reproducible.
+    """
+    from ..agents.precedent_analyst import brief
+
+    c = db.scalar(select(AuditCase).where(AuditCase.case_id == case_id))
+    if not c:
+        raise HTTPException(404, "case not found")
+    return brief(db, c).to_dict()
 
 
 @router.get("/cases/{case_id}/investigate")

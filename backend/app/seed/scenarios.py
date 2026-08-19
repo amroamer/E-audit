@@ -109,7 +109,7 @@ def scenario_alfaisaliah(db: Session) -> None:
     db.add(AuditCase(
         case_id="CASE-2025-0481", taxpayer_id=tp.id, form_number=ret.form_number,
         period_from=PERIOD_FROM, period_to=PERIOD_TO,
-        case_reason_code="EINV_GT_RETURN", risk_category="OUTPUT_UNDERDECLARED",
+        case_reason_code="EINV_VS_RETURN", risk_category="OUTPUT_UNDERDECLARED",
         vat_priority="HIGH", audit_type="desk", status="referred",
         referral_date=date.today() - timedelta(days=30),
         sla_due=date.today() + timedelta(days=12),          # urgent
@@ -119,7 +119,7 @@ def scenario_alfaisaliah(db: Session) -> None:
     db.add(AuditCase(
         case_id="CASE-2024-0310", taxpayer_id=tp.id, form_number="VAT-2024Q4-AF",
         period_from=date(2024, 10, 1), period_to=date(2024, 12, 31),
-        case_reason_code="EINV_GT_RETURN", risk_category="OUTPUT_UNDERDECLARED",
+        case_reason_code="EINV_VS_RETURN", risk_category="OUTPUT_UNDERDECLARED",
         vat_priority="HIGH", audit_type="desk", status="closed",
         referral_date=date(2025, 2, 1), scenario_key="prior",
         action_taken="ASSESSMENT_RAISED", audit_result_type="FINDING", root_cause_code="OUT-01",
@@ -165,7 +165,7 @@ def scenario_nael_clean(db: Session) -> None:
     db.add(AuditCase(
         case_id="CASE-2025-0482", taxpayer_id=tp.id, form_number=ret.form_number,
         period_from=PERIOD_FROM, period_to=PERIOD_TO,
-        case_reason_code="SECTOR_RATIO_OUTLIER", risk_category="RATIO_ANOMALY",
+        case_reason_code="PURCHASE_SALES_RATIO", risk_category="RATIO_ANOMALY",
         vat_priority="MEDIUM", audit_type="desk", status="referred",
         referral_date=date.today() - timedelta(days=20),
         sla_due=date.today() + timedelta(days=45),          # relaxed
@@ -214,7 +214,7 @@ def scenario_rawabi_creditnotes(db: Session) -> None:
     db.add(AuditCase(
         case_id="CASE-2025-0483", taxpayer_id=tp.id, form_number=ret.form_number,
         period_from=PERIOD_FROM, period_to=PERIOD_TO,
-        case_reason_code="EINV_GT_RETURN", risk_category="OUTPUT_UNDERDECLARED",
+        case_reason_code="EINV_VS_RETURN", risk_category="OUTPUT_UNDERDECLARED",
         vat_priority="MEDIUM", audit_type="desk", status="referred",
         referral_date=date.today() - timedelta(days=18),
         sla_due=date.today() + timedelta(days=30),
@@ -264,7 +264,7 @@ def scenario_tabuk_timing(db: Session) -> None:
     db.add(AuditCase(
         case_id="CASE-2025-0484", taxpayer_id=tp.id, form_number=ret.form_number,
         period_from=PERIOD_FROM, period_to=PERIOD_TO,
-        case_reason_code="EINV_GT_RETURN", risk_category="OUTPUT_UNDERDECLARED",
+        case_reason_code="EINV_VS_RETURN", risk_category="OUTPUT_UNDERDECLARED",
         vat_priority="MEDIUM", audit_type="desk", status="referred",
         referral_date=date.today() - timedelta(days=15),
         sla_due=date.today() + timedelta(days=50),
@@ -311,7 +311,7 @@ def scenario_najd_underdeclared(db: Session) -> None:
     db.add(AuditCase(
         case_id="CASE-2025-0485", taxpayer_id=tp.id, form_number=ret.form_number,
         period_from=PERIOD_FROM, period_to=PERIOD_TO,
-        case_reason_code="EINV_GT_RETURN", risk_category="OUTPUT_UNDERDECLARED",
+        case_reason_code="SALES_UNDERREPORTED", risk_category="OUTPUT_UNDERDECLARED",
         vat_priority="HIGH", audit_type="desk", status="referred",
         referral_date=date.today() - timedelta(days=28),
         sla_due=date.today() + timedelta(days=25),
@@ -357,7 +357,7 @@ def scenario_yanbu_overdeclared(db: Session) -> None:
     db.add(AuditCase(
         case_id="CASE-2025-0486", taxpayer_id=tp.id, form_number=ret.form_number,
         period_from=PERIOD_FROM, period_to=PERIOD_TO,
-        case_reason_code="RETURN_GT_EINV", risk_category="OUTPUT_OVERDECLARED",
+        case_reason_code="EINV_VS_RETURN", risk_category="OUTPUT_OVERDECLARED",
         vat_priority="MEDIUM", audit_type="desk", status="referred",
         referral_date=date.today() - timedelta(days=22),
         sla_due=date.today() + timedelta(days=40),
@@ -427,7 +427,7 @@ def scenario_hail_manual_entry(db: Session) -> None:
     db.add(AuditCase(
         case_id="CASE-2025-0487", taxpayer_id=tp.id, form_number=ret.form_number,
         period_from=PERIOD_FROM, period_to=PERIOD_TO,
-        case_reason_code="EINV_GT_RETURN", risk_category="OUTPUT_UNDERDECLARED",
+        case_reason_code="FINANCIAL_DISCREPANCY", risk_category="OUTPUT_UNDERDECLARED",
         vat_priority="HIGH", audit_type="desk", status="referred",
         referral_date=date.today() - timedelta(days=10),
         sla_due=date.today() + timedelta(days=20),

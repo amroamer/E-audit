@@ -5,7 +5,7 @@ from datetime import date, datetime
 from typing import Optional
 
 from sqlalchemy import (
-    String, Integer, Numeric, Date, DateTime, Boolean, Text, ForeignKey, func,
+    String, Integer, Numeric, Date, DateTime, Boolean, Text, ForeignKey, JSON, func,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -16,6 +16,12 @@ Money = Numeric(16, 2)
 
 
 class Taxpayer(Base):
+    """Who the auditor is dealing with.
+
+    The registration columns identify the taxpayer; the block below them is the profile the
+    auditor would otherwise assemble by hand before opening a case — what this business
+    actually does, whether it imports, and how it has behaved as a filer.
+    """
     __tablename__ = "taxpayer"
     __table_args__ = {"schema": SCHEMA}
 
@@ -33,6 +39,29 @@ class Taxpayer(Base):
     reg_from: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     reg_to: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     dereg_type: Mapped[str] = mapped_column(String(30), default="")
+
+    # --- profile: what this business does, and how it has behaved ---------------------
+    legal_form: Mapped[str] = mapped_column(String(40), default="")             # LLC/JSC/establishment
+    # [{"isic": "4610", "description": "Wholesale on a fee or contract basis", "primary": true}]
+    economic_activities: Mapped[list] = mapped_column(JSON, default=list)
+    # [{"name": "...", "vat_no": "...", "relation": "subsidiary|common-owner|..."}]
+    related_parties: Mapped[list] = mapped_column(JSON, default=list)
+    employee_count: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    branch_count: Mapped[int] = mapped_column(Integer, default=1)
+    pos_registered: Mapped[bool] = mapped_column(Boolean, default=False)
+    importer_flag: Mapped[bool] = mapped_column(Boolean, default=False)
+    exporter_flag: Mapped[bool] = mapped_column(Boolean, default=False)
+    einvoicing_onboarded: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    # {"returns_due": 12, "returns_filed": 12, "filed_late": 2, "avg_days_late": 4,
+    #  "payments_late": 1, "outstanding_balance": 0.0}
+    filing_compliance: Mapped[dict] = mapped_column(JSON, default=dict)
+
+    @property
+    def primary_activity(self) -> dict:
+        for a in self.economic_activities or []:
+            if a.get("primary"):
+                return a
+        return (self.economic_activities or [{}])[0]
 
 
 class VatReturn(Base):
@@ -128,7 +157,13 @@ class InvoiceTaxSubtotal(Base):
 
 
 class AuditCase(Base):
-    """A case referred by the (out-of-scope) risk engine, plus closed-case outcome labels."""
+    """A case referred by the (out-of-scope) risk engine, plus closed-case outcome labels.
+
+    A *closed* case is also the record of a prior audit: `audit_result_type`, `root_cause_code`
+    and `diff_tax_amt` are the outcome labels, and the correspondence columns below record how
+    much effort it took. That makes the closed population both the taxpayer's audit history and
+    the corpus the precedent agent retrieves over — there is no separate prior-audit table.
+    """
     __tablename__ = "audit_case"
     __table_args__ = {"schema": SCHEMA}
 
@@ -155,4 +190,16 @@ class AuditCase(Base):
     vat_amt: Mapped[float] = mapped_column(Money, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
+    # --- how the case actually ran (populated on closure) -----------------------------
+    closed_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    rounds_of_correspondence: Mapped[int] = mapped_column(Integer, default=0)
+    days_to_close: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    # request-item kinds that were asked for, and which of them the auditor cited on closing:
+    # {"requested": ["sales-analysis", "contracts"], "decisive": ["sales-analysis"]}
+    evidence_used: Mapped[dict] = mapped_column(JSON, default=dict)
+    conclusion_note: Mapped[str] = mapped_column(Text, default="")
+
     taxpayer: Mapped[Taxpayer] = relationship()
+    referral: Mapped[Optional["RiskReferral"]] = relationship(
+        back_populates="case", uselist=False, cascade="all, delete-orphan"
+    )
