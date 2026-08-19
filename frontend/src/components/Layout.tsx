@@ -1,12 +1,15 @@
 import type { ReactNode } from "react";
 import { NavLink } from "react-router-dom";
 
+const HERO = "CASE-2025-0481";
 const NAV = [
   { to: "/", label: "Overview", end: true, icon: "▣" },
-  { to: "/cases/CASE-2025-0481", label: "Reconciliation", end: false, icon: "▦" },
+  { to: `/cases/${HERO}`, label: "Dossier", end: true, icon: "◈" },
+  { to: `/cases/${HERO}/casework`, label: "Casework", end: false, icon: "✉" },
+  { to: `/cases/${HERO}/reconciliation`, label: "Reconciliation", end: false, icon: "▦" },
   { to: "/rules", label: "Rulebook", end: false, icon: "▤" },
 ];
-const SOON = ["Case queue", "Draft reports", "Auditor approval"];
+const SOON = ["Legal retrieval", "Audit report", "Auditor approval"];
 
 export default function Layout({ children }: { children: ReactNode }) {
   return (

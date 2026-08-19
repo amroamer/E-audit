@@ -252,6 +252,24 @@ def _check_is_right_document(item, content: dict) -> list[Gap]:
 
 # --------------------------------------------------------------------------------- entry point
 
+def _latest(docs: list):
+    """The version of a document that counts — the one received last, id breaking ties."""
+    return max(docs, key=lambda d: (getattr(d, "received_at", None) or date.min, d.id or 0))
+
+
+def superseded_ids(documents: list) -> set[int]:
+    """Documents replaced by a later upload against the same item. History, not evidence."""
+    by_item: dict[int, list] = {}
+    for d in documents:
+        if d.request_item_id is not None:
+            by_item.setdefault(d.request_item_id, []).append(d)
+    out: set[int] = set()
+    for docs in by_item.values():
+        keep = _latest(docs)
+        out |= {d.id for d in docs if d.id != keep.id}
+    return out
+
+
 def check(*, case_id: str, round_: int, items: list, documents: list,
           period_from: date, period_to: date) -> Report:
     """Run every deterministic check for one round of correspondence.
@@ -259,6 +277,12 @@ def check(*, case_id: str, round_: int, items: list, documents: list,
     `items` are `models.RequestItem` rows (or anything with the same attributes) and
     `documents` are `models.ReceivedDocument` rows. Both are passed in rather than queried so
     the checker stays a pure function — which is what makes it testable against a fixture.
+
+    **The latest document for an item is the one that counts.** When a taxpayer answers a
+    follow-up, they resend the corrected file against the same item; checking the superseded
+    version too would keep reporting gaps the taxpayer has already fixed, and the loop could
+    never close. Earlier versions stay on the case file as history — see
+    `superseded_ids()` — they are simply not re-checked.
     """
     report = Report(case_id=case_id, round=round_,
                     checked_items=len(items), checked_documents=len(documents))
@@ -275,7 +299,7 @@ def check(*, case_id: str, round_: int, items: list, documents: list,
                 kind="missing-item", item_label=item.label, request_item_id=item.id,
                 detail=f"Nothing was supplied for '{item.label}'."))
             continue
-        for doc in docs:
+        for doc in [_latest(docs)]:
             content = doc.content or {}
             found: list[Gap] = []
             found += _check_format(item, doc.file_format or content.get("format", ""))

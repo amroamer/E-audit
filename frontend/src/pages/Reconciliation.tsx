@@ -5,6 +5,7 @@ import AiNarration from "../components/AiNarration";
 import NextBestAction from "../components/NextBestAction";
 import AuditReport from "../components/AuditReport";
 import InvestigationPanel from "../components/InvestigationPanel";
+import CaseTabs from "../components/CaseTabs";
 import TaxpayerResponsePanel from "../components/TaxpayerResponsePanel";
 
 interface BridgeStep {
@@ -320,6 +321,8 @@ export default function Reconciliation() {
           </span>
         </div>
       </div>
+
+      <CaseTabs id={id!} />
 
       <TaxpayerBrief id={id} />
 

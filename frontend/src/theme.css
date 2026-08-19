@@ -76,7 +76,8 @@ td .sub{font-size:11.5px;color:var(--faint);margin-top:2px}
 .notice.err{color:var(--high)}
 
 /* pills / badges */
-.pill{display:inline-block;font-size:11.5px;padding:3px 10px;border-radius:999px;font-weight:650}
+/* a bare .pill is a neutral chip; the modifiers below tint it by severity */
+.pill{display:inline-block;font-size:11.5px;padding:3px 10px;border-radius:999px;font-weight:650;background:var(--surface-2);color:var(--muted)}
 .pill.status{background:var(--surface-2);color:var(--muted)}
 .pill.pri-high{background:var(--high-bg);color:var(--high)}
 .pill.pri-medium{background:var(--med-bg);color:var(--med)}
@@ -275,3 +276,103 @@ td .sub{font-size:11.5px;color:var(--faint);margin-top:2px}
 .scope-list b{font-weight:650}
 .scope-list .sub{display:block;color:var(--muted);font-size:12.5px;margin-top:3px;line-height:1.5}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}.modal-overlay,.modal,.cursor{animation:none!important}}
+
+/* ============================================================ case lifecycle
+   Added with the dossier / casework pages. A case is worked left to right: what we already
+   hold, what we ask for and chase, then what it means. */
+.casetabs{display:flex;gap:8px;margin:0 0 18px;border-bottom:1px solid var(--line)}
+.casetab{display:flex;flex-direction:column;gap:1px;padding:9px 14px 11px;border-bottom:2px solid transparent;
+  text-decoration:none;color:var(--muted);transition:color .15s,border-color .15s}
+.casetab b{font-size:13.5px;font-weight:600}
+.casetab small{font-size:11px;color:var(--faint)}
+.casetab:hover{color:var(--ink)}
+.casetab.active{color:var(--brand);border-bottom-color:var(--brand)}
+.casetab.active b{color:var(--brand)}
+
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:1100px){.grid-2{grid-template-columns:1fr}}
+.panel-body{padding:14px 16px 16px}
+.panel-body h4{font-size:11.5px;text-transform:uppercase;letter-spacing:.6px;color:var(--brand-deep);margin:18px 0 8px}
+.panel-body h4:first-child{margin-top:0}
+:root[data-theme="dark"] .panel-body h4{color:var(--brand)}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]) .panel-body h4{color:var(--brand)}}
+.chips{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.sub{font-size:12px;color:var(--muted)}
+.dim{opacity:.5}
+.error{background:var(--high-bg);color:var(--high);border:1px solid var(--high);border-radius:10px;padding:10px 14px;font-size:13px}
+.actions{display:flex;gap:9px;margin-top:14px}
+.btn.small{padding:6px 12px;font-size:12.5px;text-decoration:none;display:inline-flex;align-items:center}
+.btn.primary{background:var(--brand)}
+.chip-det{font-size:10px;font-weight:700;letter-spacing:.7px;text-transform:uppercase;color:var(--brand-deep);
+  background:var(--brand-tint);border:1px solid var(--line);border-radius:5px;padding:2px 6px}
+:root[data-theme="dark"] .chip-det{color:var(--brand)}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]) .chip-det{color:var(--brand)}}
+.chip-ai{font-size:10px;font-weight:700;letter-spacing:.7px;text-transform:uppercase;color:#fff;
+  background:var(--gold);border-radius:5px;padding:2px 6px;margin-left:7px}
+
+/* a horizontal proportion meter — distinct from .bar, which is the bridge's absolute track */
+.meter{display:inline-block;vertical-align:middle;width:74px;height:7px;border-radius:4px;background:var(--surface-2);
+  border:1px solid var(--line);overflow:hidden}
+.meter i{display:block;height:100%;background:var(--brand);border-radius:3px}
+.meter i.warn{background:var(--high)}
+
+.callout{border-radius:10px;padding:11px 14px;font-size:13px;margin:14px 0 0;border:1px solid var(--line);background:var(--surface-2)}
+.callout.warn{background:var(--med-bg);border-color:var(--med);color:var(--ink)}
+.callout.ok{background:var(--low-bg);border-color:var(--low);color:var(--ink)}
+.drill{margin-top:14px}
+.drill>summary{cursor:pointer;font-size:12.5px;font-weight:600;color:var(--brand);padding:6px 0}
+
+/* ---- dossier: what ZATCA already holds */
+.srcgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:9px}
+.srccard{display:flex;gap:9px;align-items:flex-start;padding:10px 12px;border:1px solid var(--line);
+  border-radius:10px;background:var(--surface-2);opacity:.6}
+.srccard.held{opacity:1;background:var(--surface);border-color:var(--brand)}
+.srccard b{display:block;font-size:13px;font-weight:600}
+.srccard small{display:block;font-size:11px;color:var(--muted)}
+.srcmark{font-weight:700;color:var(--faint);line-height:1.35}
+.srccard.held .srcmark{color:var(--brand)}
+.acts{list-style:none;margin:0 0 10px;padding:0;display:flex;flex-direction:column;gap:6px}
+.acts li{font-size:13px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+
+/* ---- precedent */
+.outcome-bar{display:flex;height:30px;border-radius:8px;overflow:hidden;border:1px solid var(--line);margin:0 0 16px}
+.ob-seg{display:flex;align-items:center;justify-content:center;font-size:11.5px;font-weight:600;color:#fff;
+  white-space:nowrap;transition:width .5s ease}
+.ob-clear{background:var(--low)}
+.ob-finding{background:var(--high)}
+.prec-grid{display:grid;grid-template-columns:1fr 1fr;gap:22px}
+@media(max-width:900px){.prec-grid{grid-template-columns:1fr}}
+.tally{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:7px}
+.tally li{display:flex;align-items:center;gap:9px;font-size:12.5px}
+.tally li b{margin-left:auto;font-variant-numeric:tabular-nums;color:var(--muted);font-weight:600}
+.prec-facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:1px;background:var(--line);
+  border:1px solid var(--line);border-radius:10px;overflow:hidden;margin:16px 0 0}
+.prec-facts>div{background:var(--surface);padding:9px 12px;display:flex;flex-direction:column;gap:2px}
+.prec-facts .k{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
+.prec-facts .v{font-size:14px;font-variant-numeric:tabular-nums}
+
+/* ---- casework: the plan */
+.planlist{display:flex;flex-direction:column;gap:9px}
+.planitem{border:1px solid var(--line);border-left:3px solid var(--brand);border-radius:9px;
+  padding:10px 13px;background:var(--surface-2)}
+.planitem.dropped{border-left-color:var(--faint);opacity:.75}
+.pi-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:3px}
+.planitem .sub{margin:0}
+.cols{display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin:7px 0 0}
+.cols .k{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-right:3px}
+
+/* ---- casework: gaps and letters */
+.gaps{display:flex;flex-direction:column;gap:14px}
+.gapgroup h4{margin:0 0 7px}
+.gap{display:flex;gap:10px;align-items:flex-start;padding:9px 12px;border:1px solid var(--line);
+  border-radius:9px;background:var(--surface-2);margin-bottom:6px}
+.gap.blocking{border-left:3px solid var(--high)}
+.gap.advisory{border-left:3px solid var(--med)}
+.gap p{margin:0;font-size:13px}
+.gap small{display:block;color:var(--faint);font-size:11px;margin-top:3px}
+.letterpre{white-space:pre-wrap;font-family:var(--sans);font-size:13px;line-height:1.6;margin:0;
+  background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:16px 18px;max-height:520px;overflow:auto}
+.uploadbar{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin:12px 0 4px;padding:11px 13px;
+  border:1px dashed var(--line);border-radius:10px;background:var(--surface-2)}
+.uploadbar select,.uploadbar input[type=file]{font:inherit;font-size:12.5px;color:var(--ink);
+  background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:6px 9px}

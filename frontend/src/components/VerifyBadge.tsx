@@ -10,14 +10,14 @@ export default function VerifyBadge({ source, violations = [] }: { source: AiSou
     );
   if (source === "deterministic-fallback")
     return (
-      <span className="pill status" title="No AI configured — deterministic output.">
-        ∑ Deterministic (no AI)
+      <span className="pill status" title="Written by the deterministic engine — no model configured.">
+        ∑ Engine-drafted
       </span>
     );
   if (source === "pdpl-fallback")
     return (
-      <span className="pill status" title="Hosted AI disabled for non-synthetic data (PDPL).">
-        ∑ Deterministic (PDPL)
+      <span className="pill status" title="Hosted model not called on non-synthetic data (PDPL). The engine wrote this.">
+        ∑ Engine-drafted (PDPL)
       </span>
     );
   if (source === "blocked-refusal")

@@ -24,7 +24,7 @@ from ..models import (
     AuditCase, GapFinding, InformationRequest, ReceivedDocument, RequestItem,
 )
 from . import extract as extractor
-from .completeness import BLOCKING, Report, check
+from .completeness import BLOCKING, Report, check, superseded_ids
 from .planner import RequestPlan, plan as build_plan
 
 RESPONSE_WINDOW_DAYS = 20
@@ -190,6 +190,7 @@ def state(db: Session, case: AuditCase) -> dict:
         select(GapFinding).where(GapFinding.case_id == case.case_id)
         .order_by(GapFinding.round, GapFinding.id)).all())
     docs = documents(db, case.case_id)
+    stale = superseded_ids(docs)
     by_round: dict[int, list] = {}
     for g in gaps:
         by_round.setdefault(g.round, []).append(g)
@@ -229,7 +230,7 @@ def state(db: Session, case: AuditCase) -> dict:
         ],
         "documents": [
             {"id": d.id, "filename": d.filename, "format": d.file_format, "round": d.round,
-             "request_item_id": d.request_item_id,
+             "request_item_id": d.request_item_id, "superseded": d.id in stale,
              "received_at": d.received_at.isoformat() if d.received_at else None,
              "columns": (d.content or {}).get("columns", []),
              "raw_headers": (d.content or {}).get("raw_headers", []),

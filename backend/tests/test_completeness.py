@@ -32,10 +32,11 @@ def item(key="sales-analysis", *, id=1, status="outstanding", **over):
 
 
 def doc(*, id=1, item_id=1, columns=None, rows=None, totals=None, fmt="xlsx",
-        period=(("2025-01-05"), ("2025-03-28")), filename="response.xlsx"):
+        period=(("2025-01-05"), ("2025-03-28")), filename="response.xlsx", received=None):
     cols = [normalise(c) for c in (columns if columns is not None else SALES_COLUMNS)]
     return SimpleNamespace(
         id=id, request_item_id=item_id, filename=filename, file_format=fmt,
+        received_at=received or PERIOD_TO,
         content={"format": fmt, "columns": cols, "rows": rows or [],
                  "stated_totals": totals or {}, "raw_headers": list(columns or SALES_COLUMNS),
                  "period_from": period[0], "period_to": period[1], "note": ""},
@@ -212,3 +213,38 @@ def test_the_seeded_response_reproduces_the_demo_gaps_through_the_real_extractor
     assert "arithmetic-mismatch" in found
     assert "wrong-document" not in found               # it IS a sales analysis
     assert len(r.blocking) == 5
+
+
+# ------------------------------------------------------------------ resubmission
+def test_a_corrected_resubmission_supersedes_the_deficient_one():
+    """Without this the loop can never close: the fixed file arrives, and the old one keeps
+    reporting the gaps the taxpayer has just corrected."""
+    from datetime import timedelta
+
+    from app.requests.completeness import superseded_ids
+
+    bad = [["2025-01-10", "", "B", "3", "G", 1000.0, "15%", 150.0]]
+    good = [["2025-01-10", "INV-1", "B", "3", "G", 1000.0, "15%", 150.0],
+            ["2025-03-28", "INV-2", "B", "3", "G", 1000.0, "15%", 150.0]]
+    d1 = doc(id=1, rows=bad, totals={"vat_amount": 999.0})
+    d1.received_at = PERIOD_TO
+    d2 = doc(id=2, rows=good, totals={"vat_amount": 300.0})
+    d2.received_at = PERIOD_TO + timedelta(days=30)
+
+    r = run([item()], [d1, d2])
+    assert r.gaps == []
+    assert r.complete
+    assert superseded_ids([d1, d2]) == {1}
+
+
+def test_the_superseded_version_is_history_not_evidence():
+    from datetime import timedelta
+
+    from app.requests.completeness import superseded_ids
+
+    a = doc(id=1, item_id=1)
+    a.received_at = PERIOD_FROM
+    b = doc(id=2, item_id=2)
+    b.received_at = PERIOD_FROM + timedelta(days=1)
+    # different items, so neither replaces the other
+    assert superseded_ids([a, b]) == set()

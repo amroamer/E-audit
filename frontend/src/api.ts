@@ -1,3 +1,5 @@
+import type { AiSource } from "./ai/ai";
+
 const BASE = "/api";
 
 async function getJSON<T>(path: string): Promise<T> {
@@ -125,12 +127,307 @@ export interface ExecOverview {
   to_review: number;
 }
 
+/* ---- the case dossier (app/dossier) ----------------------------------------
+   Everything ZATCA already holds on this taxpayer and period. The auditors start a case by
+   investigating internal data and only then decide what is genuinely missing; today that
+   means opening several systems. `sources[].held` is what lets the planner drop a request
+   mechanically rather than relying on the auditor to remember what the Authority has. */
+export interface Activity {
+  isic: string;
+  description: string;
+  primary?: boolean;
+}
+export interface RelatedParty {
+  name: string;
+  vat_no: string;
+  relation: string;
+}
+export interface TaxpayerProfile {
+  id: number;
+  name: string;
+  vat_no: string;
+  legal_form: string;
+  bp_type: string;
+  sector: string;
+  size: string;
+  primary_activity: Activity;
+  activities: Activity[];
+  resident: boolean;
+  vat_group_rep: boolean;
+  accounting_method: string;
+  registered_from: string | null;
+  registered_years: number | null;
+  deregistered: string | null;
+  einvoicing_onboarded: string | null;
+  employees: number | null;
+  branches: number;
+  pos_registered: boolean;
+  importer: boolean;
+  exporter: boolean;
+  related_parties: RelatedParty[];
+  compliance: Record<string, number>;
+  audit_history: {
+    closed_cases: number;
+    findings: number;
+    total_assessed: number;
+    last_outcome: string | null;
+    root_causes: string[];
+  };
+}
+export interface RiskSignal {
+  code: string;
+  label: string;
+  value: number;
+  weight: number;
+}
+export interface Referral {
+  held: boolean;
+  structured: boolean;
+  indicator_code: string;
+  indicator_label: string;
+  description?: string;
+  narrative: string;
+  score: number | null;
+  threshold?: number;
+  signals: RiskSignal[];
+  model_version?: string;
+  generated_at?: string | null;
+  consult_first?: string[];
+}
+export interface DossierSource {
+  key: string;
+  label: string;
+  held: boolean;
+  count: number | null;
+  as_of: string | null;
+}
+export interface Dossier {
+  case_id: string;
+  period_from: string;
+  period_to: string;
+  status: string;
+  audit_type: string;
+  sla_due: string | null;
+  taxpayer: TaxpayerProfile;
+  referral: Referral;
+  sources: DossierSource[];
+  blocks: Record<string, any>;
+}
+
+/* ---- precedent (app/precedent) ---------------------------------------------
+   What comparable closed cases turned out to be, and which evidence actually closed them.
+   Deterministic retrieval and a Python tally — no model, so the ranked list is stable. */
+export interface Tally {
+  key: string;
+  count: number;
+  pct: number;
+}
+export interface EvidenceStat {
+  key: string;
+  label: string;
+  requested: number;
+  decisive: number;
+  decisive_rate: number;
+}
+export interface PrecedentMatch {
+  case_id: string;
+  similarity: number;
+  reasons: string[];
+  sector: string;
+  size: string;
+  result: string;
+  root_cause: string;
+  rounds: number;
+  assessed: number;
+  note: string;
+}
+export interface PrecedentSummary {
+  case_id: string;
+  indicator: string;
+  indicator_label: string;
+  comparable: number;
+  widened: boolean;
+  outcomes: Tally[];
+  explained_by: Tally[];
+  caused_by: Tally[];
+  evidence: EvidenceStat[];
+  effort: {
+    median_rounds?: number | null;
+    max_rounds?: number | null;
+    median_days_to_close?: number | null;
+    single_round_pct?: number | null;
+  };
+  assessed: { findings?: number; median?: number | null; total?: number };
+  recurrence: { cases: number; findings: number; root_causes: string[]; case_ids: string[] } | null;
+  matches: PrecedentMatch[];
+}
+export interface SuggestedItem {
+  key: string;
+  label: string;
+  kind: string;
+  decisive_rate: number;
+  requested_in: number;
+  decisive_in: number;
+  held_internally: string;
+  recommend: boolean;
+  why: string;
+}
+export interface PrecedentBriefing {
+  agent: string;
+  summary: PrecedentSummary;
+  narrative: string[];
+  hypotheses: Hypothesis[];
+  suggested_items: SuggestedItem[];
+}
+
+/* ---- the request/response loop (app/requests) ------------------------------- */
+export interface PlannedItem {
+  key: string;
+  label: string;
+  kind: string;
+  description: string;
+  required_columns: string[];
+  mandatory_columns: string[];
+  expected_format: string;
+  addresses: string[];
+  include: boolean;
+  reason: string;
+  rationale: string;
+  decisive_rate: number | null;
+  requested_in: number;
+  hypothesis_id: string;
+}
+export interface RequestPlan {
+  case_id: string;
+  indicator: string;
+  held_internally: string[];
+  items: PlannedItem[];
+  dropped: PlannedItem[];
+  notes: string[];
+}
+export type GapKind =
+  | "missing-item"
+  | "wrong-document"
+  | "missing-column"
+  | "empty-mandatory-field"
+  | "wrong-period"
+  | "arithmetic-mismatch"
+  | "wrong-format"
+  | "unrequested-document"
+  | "too-vague";
+export interface Gap {
+  id?: number;
+  kind: GapKind;
+  severity: "blocking" | "advisory";
+  detail: string;
+  citation: string;
+  item_label: string;
+  source: string;
+  request_item_id: number | null;
+  document_id: number | null;
+}
+export interface LoopItem {
+  id: number;
+  seq: number;
+  key: string;
+  kind: string;
+  label: string;
+  description: string;
+  required_columns: string[];
+  mandatory_columns: string[];
+  expected_format: string;
+  rationale: string;
+  hypothesis_id: string;
+  status: "outstanding" | "received" | "satisfied" | "waived";
+  period: string;
+}
+export interface LoopRound {
+  seq: number;
+  status: string;
+  subject: string;
+  issued_at: string | null;
+  due_at: string | null;
+  answered_at: string | null;
+  body: string;
+  body_source: string;
+  items: LoopItem[];
+  gaps: Gap[];
+}
+export interface LoopDocument {
+  id: number;
+  filename: string;
+  format: string;
+  round: number;
+  request_item_id: number | null;
+  /** replaced by a later upload against the same item — history, not evidence */
+  superseded: boolean;
+  received_at: string | null;
+  columns: string[];
+  raw_headers: string[];
+  row_count: number;
+  stated_totals: Record<string, number>;
+  period_from: string | null;
+  period_to: string | null;
+  note: string;
+}
+export interface LoopState {
+  case_id: string;
+  round: number;
+  status: string;
+  complete: boolean;
+  rounds: LoopRound[];
+  documents: LoopDocument[];
+  blocking: number;
+  draft?: Draft;
+}
+export interface Draft {
+  text: string;
+  source: AiSource | "none";
+  verified?: boolean;
+  mode?: string;
+  violations?: string[];
+  note?: string;
+}
+
 export const listCases = () => getJSON<CaseRow[]>("/cases");
 export const listRules = () => getJSON<RuleRow[]>("/rules");
 export const getHealth = () => getJSON<Health>("/health");
 export const getOverview = () => getJSON<ExecOverview>("/overview");
 export const getScope = () => getJSON<ScopeCard>("/scope");
 export const getInvestigation = (id: string) => getJSON<Investigation>(`/cases/${id}/investigate`);
+export const getDossier = (id: string) => getJSON<Dossier>(`/cases/${id}/dossier`);
+export const getPrecedent = (id: string) => getJSON<PrecedentBriefing>(`/cases/${id}/precedent`);
+export const getPlan = (id: string) => getJSON<RequestPlan>(`/cases/${id}/plan`);
+export const getLoop = (id: string) => getJSON<LoopState>(`/cases/${id}/requests`);
+export const getFollowup = (id: string) => getJSON<Draft>(`/cases/${id}/followup`);
+
+const post = async <T>(path: string): Promise<T> => {
+  const r = await fetch(BASE + path, { method: "POST" });
+  if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
+  return (await r.json()) as T;
+};
+
+export const openRound = (id: string) => post<LoopState>(`/cases/${id}/requests`);
+export const issueRound = (id: string, seq: number) =>
+  post<LoopState>(`/cases/${id}/requests/${seq}/issue`);
+export const recheck = (id: string) => post<LoopState>(`/cases/${id}/requests/check`);
+
+/** Upload a file the taxpayer sent. The response comes back with the gaps already recomputed. */
+export const uploadDocument = async (
+  id: string,
+  file: File,
+  itemId?: number,
+): Promise<LoopState> => {
+  const body = new FormData();
+  body.append("file", file);
+  if (itemId != null) body.append("item_id", String(itemId));
+  const r = await fetch(`${BASE}/cases/${id}/documents`, { method: "POST", body });
+  if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
+  return r.json();
+};
+
+/** The seeded deficient response, so the upload path can be demonstrated live. */
+export const demoResponseFileUrl = `${BASE}/demo/response-file`;
 
 export const reseedDemo = async (): Promise<{ status: string; message: string }> => {
   const r = await fetch(BASE + "/admin/reseed", { method: "POST" });
