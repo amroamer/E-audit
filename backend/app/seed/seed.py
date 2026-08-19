@@ -10,7 +10,7 @@ from ..models import Rule, Assumption, CodeDictionary
 from ..rule_taxonomy import REASON_CODES
 from ..risk_indicators import INDICATORS
 from .rulebook_loader import parse_rules
-from . import scenarios, dossier_seed, corpus
+from . import scenarios, dossier_seed, corpus, casework_seed
 
 ASSUMPTIONS = [
     ("return.total_is_netted", "true", "Declared Total is final; _Adjustment already included."),
@@ -66,11 +66,16 @@ def run() -> None:
         scenarios.build_all(db)      # the seven hand-built demo narratives
         dossier_seed.enrich_all(db)  # profiles, financials, customs, structured referrals
         n_corpus = corpus.build(db)  # the labelled closed-case population precedent searches
+        loop = casework_seed.build(db)   # one issued request + a deficient response, on the hero
         db.commit()
         print(f"Seeded {len(rules)} rules, {len(ASSUMPTIONS)} assumptions, "
               f"{len(CODE_DICTIONARY)} codes, {len(REASON_CODES)} reason codes, "
               f"{len(INDICATORS)} risk indicators, demo cases (finding + clean), "
               f"and {n_corpus} closed cases in the precedent corpus.")
+        if loop.get("seeded"):
+            print(f"Request loop on {loop['case_id']}: round {loop['round']}, "
+                  f"{loop['items']} items requested, {loop['gaps']} gaps found "
+                  f"({loop['blocking']} blocking).")
     except Exception:
         db.rollback()
         raise

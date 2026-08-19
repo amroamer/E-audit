@@ -1,11 +1,15 @@
-from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import StreamingResponse
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy import select, func, delete
 from sqlalchemy.orm import Session
 
 from ..db import get_db
-from ..models import Taxpayer, VatReturn, Invoice, AuditCase, Rule, TaxpayerResponse, EventLog
+from ..models import (
+    Taxpayer, VatReturn, Invoice, AuditCase, Rule, TaxpayerResponse, EventLog, GapFinding,
+)
+from ..requests import service as req_service
+from ..agents.correspondence import draft_followup, draft_request
 from ..recon_engine import reconcile_case
 from ..priority import score_case
 from ..pipeline.rules import coded_rules as wired_codes
@@ -346,6 +350,115 @@ def delete_response(case_id: str, seq: int, db: Session = Depends(get_db)):
                     payload={"seq": seq}))
     db.commit()
     return reconcile_case(db, case_id)
+
+
+# ------------------------------------------------- information request / response loop
+def _case_or_404(db: Session, case_id: str) -> AuditCase:
+    c = db.scalar(select(AuditCase).where(AuditCase.case_id == case_id))
+    if not c:
+        raise HTTPException(404, "case not found")
+    return c
+
+
+@router.get("/cases/{case_id}/plan")
+def request_plan(case_id: str, db: Session = Depends(get_db)):
+    """What to ask the taxpayer for — and what was dropped because ZATCA already holds it."""
+    from ..requests.planner import plan
+
+    return plan(db, _case_or_404(db, case_id)).to_dict()
+
+
+@router.get("/cases/{case_id}/requests")
+def request_loop(case_id: str, db: Session = Depends(get_db)):
+    """Every round of correspondence on this case: items, documents received, and gaps."""
+    return req_service.state(db, _case_or_404(db, case_id))
+
+
+@router.post("/cases/{case_id}/requests")
+def open_round(case_id: str, db: Session = Depends(get_db)):
+    """Open the next round from the current plan, as a draft the auditor approves."""
+    case = _case_or_404(db, case_id)
+    current = req_service.current_request(db, case_id)
+    if current is not None and current.status not in ("satisfied",):
+        raise HTTPException(409, f"round {current.seq} is still {current.status}")
+    req = req_service.open_request(db, case)
+    drafted = draft_request(case, case.taxpayer, req)
+    req.body, req.body_source = drafted["text"], drafted["source"]
+    db.add(EventLog(case_id=case_id, actor="auditor", action="request-drafted",
+                    payload={"round": req.seq, "items": len(req.items)}))
+    db.commit()
+    return {**req_service.state(db, case), "draft": drafted}
+
+
+@router.post("/cases/{case_id}/requests/{seq}/issue")
+def issue_round(case_id: str, seq: int, db: Session = Depends(get_db)):
+    case = _case_or_404(db, case_id)
+    req = next((r for r in req_service.rounds(db, case_id) if r.seq == seq), None)
+    if req is None:
+        raise HTTPException(404, "round not found")
+    req_service.issue(db, req)
+    db.add(EventLog(case_id=case_id, actor="auditor", action="request-issued",
+                    payload={"round": seq}))
+    db.commit()
+    return req_service.state(db, case)
+
+
+@router.post("/cases/{case_id}/documents")
+async def upload_document(case_id: str, file: UploadFile = File(...),
+                          item_id: int | None = Form(None),
+                          db: Session = Depends(get_db)):
+    """Record a file the taxpayer sent, extract it, and re-run the completeness checks."""
+    case = _case_or_404(db, case_id)
+    req = req_service.current_request(db, case_id)
+    if req is None:
+        raise HTTPException(409, "no information request has been issued on this case")
+    data = await file.read()
+    if len(data) > 8_000_000:
+        raise HTTPException(413, "file too large for the demo (8 MB limit)")
+    doc = req_service.record_document(
+        db, case=case, req=req, item_id=item_id, filename=file.filename or "response",
+        data=data, file_format=(file.filename or "").rsplit(".", 1)[-1].lower())
+    report = req_service.run_checks(db, case)
+    db.add(EventLog(case_id=case_id, actor="taxpayer", action="document-received",
+                    payload={"round": req.seq, "file": doc.filename,
+                             "gaps": len(report.gaps)}))
+    db.commit()
+    return {**req_service.state(db, case), "report": report.to_dict()}
+
+
+@router.post("/cases/{case_id}/requests/check")
+def recheck(case_id: str, db: Session = Depends(get_db)):
+    """Re-run the deterministic completeness checks over what has been received."""
+    case = _case_or_404(db, case_id)
+    report = req_service.run_checks(db, case)
+    db.commit()
+    return {**req_service.state(db, case), "report": report.to_dict()}
+
+
+@router.get("/cases/{case_id}/followup")
+def followup(case_id: str, db: Session = Depends(get_db)):
+    """Draft the chase letter from the outstanding gaps only."""
+    case = _case_or_404(db, case_id)
+    req = req_service.current_request(db, case_id)
+    if req is None:
+        raise HTTPException(409, "no information request has been issued on this case")
+    gaps = db.scalars(
+        select(GapFinding).where(GapFinding.case_id == case_id, GapFinding.round == req.seq,
+                                 GapFinding.severity == "blocking")
+        .order_by(GapFinding.id)).all()
+    return draft_followup(case, case.taxpayer, req, list(gaps))
+
+
+@router.get("/demo/response-file")
+def demo_response_file():
+    """The taxpayer's deficient sales analysis, so the upload path can be demonstrated live."""
+    from ..seed.demo_files import sales_analysis_xlsx
+
+    return Response(
+        content=sales_analysis_xlsx(),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": 'attachment; filename="Sales_Analysis_Q1_2025.xlsx"'},
+    )
 
 
 # ---------------------------------------------------------------- AI layer (Phase 2)

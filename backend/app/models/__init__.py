@@ -11,6 +11,12 @@ from .dossier import (  # noqa: F401
     CustomsDeclaration,
     FinancialSummary,
 )
+from .casework import (  # noqa: F401
+    InformationRequest,
+    RequestItem,
+    ReceivedDocument,
+    GapFinding,
+)
 from .config_tables import Rule, Assumption, CodeDictionary  # noqa: F401
 from .recon import (  # noqa: F401
     CaseRecon,

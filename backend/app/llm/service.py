@@ -28,9 +28,10 @@ from .prompts import (
     FROZEN_PREAMBLE, build_context, build_history_context,
     NARRATE_INSTR, NBA_INSTR, SUMMARY_INSTR, REPORT_INSTR,
     LETTER_SYSTEM, LETTER_INSTR, build_letter_context, fence_letter,
+    DRAFT_LETTER_SYSTEM, DRAFT_REQUEST_INSTR, DRAFT_FOLLOWUP_INSTR, fence_facts,
 )
 from .verify import (
-    verify_claims, verify_conclusion, render_placeholders, StreamGuard,
+    verify_claims, verify_conclusion, verify_correspondence, render_placeholders, StreamGuard,
     fb_narration, fb_nba, fb_summary, fb_report,
 )
 
@@ -323,6 +324,62 @@ class LLMService:
         out = ext.model_dump()
         out["proposed_amount"] = round(abs(float(out.get("proposed_amount") or 0.0)), 2)  # auditor confirms
         return {**out, "source": "claude"}
+
+    # ------------------------------------------------- FEATURE 6: OUTBOUND CORRESPONDENCE
+    def draft_letter(self, *, kind: str, facts: str, fallback) -> dict:
+        """Draft an information request or a follow-up from engine-established facts.
+
+        The placeholder model does not fit a letter that quotes documents rather than
+        reconciliation scalars, so the guard is `verify_correspondence`: every numeric literal
+        in the draft must already appear in the facts block. Same rule, stated for prose —
+        Claude may repeat a figure it was handed, and may not introduce one.
+
+        `fallback` is a callable producing the deterministic letter, which is complete and
+        sendable English. Degrading to it costs polish, never correctness.
+        """
+        instr = DRAFT_FOLLOWUP_INSTR if kind == "follow-up" else DRAFT_REQUEST_INSTR
+        enabled, reason = availability()
+        if not enabled:
+            return {"text": fallback(), "source": _src(reason), "verified": True,
+                    "mode": "fallback", "violations": []}
+
+        def _write(ask: str) -> tuple[str, str | None]:
+            try:
+                with _client().messages.stream(
+                    model=MODEL, max_tokens=1400, thinking={"type": "adaptive"},
+                    system=[{"type": "text", "text": DRAFT_LETTER_SYSTEM,
+                             "cache_control": {"type": "ephemeral"}}],
+                    messages=[{"role": "user", "content": [
+                        {"type": "text", "text": fence_facts(facts)},
+                        {"type": "text", "text": instr},
+                        {"type": "text", "text": ask},
+                    ]}],
+                ) as stream:
+                    raw = "".join(stream.text_stream)
+                    if stream.get_final_message().stop_reason == "refusal":
+                        return "", "blocked-refusal"
+                return raw, None
+            except Exception:
+                return "", "api-error"
+
+        raw, err = _write("Draft the letter now.")
+        if err:
+            return {"text": fallback(), "source": err, "verified": False,
+                    "mode": "fallback", "violations": [err]}
+        v = verify_correspondence(raw, facts)
+        if not v["ok"]:
+            corr = ("Draft the letter now. Your earlier draft was REJECTED for: "
+                    + "; ".join(v["violations"])
+                    + ". Rewrite using ONLY figures that appear verbatim in the FACTS block, and "
+                      "no scale or comparison words.")
+            raw2, err2 = _write(corr)
+            if not err2 and verify_correspondence(raw2, facts)["ok"]:
+                return {"text": raw2.strip(), "source": "claude", "verified": True,
+                        "mode": "live", "violations": []}
+            return {"text": fallback(), "source": "blocked-unverified", "verified": False,
+                    "mode": "fallback", "violations": v["violations"]}
+        return {"text": raw.strip(), "source": "claude", "verified": True,
+                "mode": "live", "violations": []}
 
 
 llm = LLMService()  # module singleton

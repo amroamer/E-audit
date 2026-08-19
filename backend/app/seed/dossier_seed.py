@@ -63,7 +63,7 @@ PROFILES: dict[str, dict] = {
         ],
         "related_parties": [],
         "employee_count": 65, "branch_count": 7, "pos_registered": True,
-        "importer_flag": False, "exporter_flag": False,
+        "importer_flag": True, "exporter_flag": False,
         "einvoicing_onboarded": date(2023, 1, 1),
         "filing_compliance": {"returns_due": 12, "returns_filed": 12, "filed_late": 0,
                               "avg_days_late": 0, "payments_late": 0, "outstanding_balance": 0.0},
@@ -71,7 +71,14 @@ PROFILES: dict[str, dict] = {
             (2023, 14_800_000, 11_100_000, 3_700_000, 980_000, 9_200_000),
             (2024, 16_200_000, 12_150_000, 4_050_000, 1_120_000, 9_900_000),
         ],
-        "customs": [],
+        # a purchases-to-sales case on an importer: the one open case where the planner can
+        # visibly drop a request because ZATCA holds the answer already (§1)
+        "customs": [
+            ("IM-2025-002145", date(2025, 1, 22), "import", "Jeddah Islamic Port", "0402",
+             "Milk and cream, concentrated", 780_000, 39_000, 117_000, False),
+            ("IM-2025-002877", date(2025, 2, 19), "import", "Jeddah Islamic Port", "1006",
+             "Rice", 640_000, 32_000, 96_000, False),
+        ],
     },
     "300055500100003": {  # Rawabi Construction Co. — credit notes
         "legal_form": "LLC",

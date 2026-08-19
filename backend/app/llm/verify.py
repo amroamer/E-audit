@@ -89,6 +89,41 @@ def verify_claims(text: str, recon: dict | None, *, figure_free: bool = False) -
     return {"ok": not out, "violations": out}
 
 
+# =========================================================== verify_correspondence
+def verify_correspondence(text: str, facts: str) -> dict:
+    """Guard for outbound letters, where the placeholder model does not fit.
+
+    A request or follow-up quotes engine-authored facts — "the column 'description' is missing",
+    "the rows sum to SAR 468,000" — rather than reconciliation scalars, so there is no fixed
+    placeholder vocabulary to check against. The rule is the same in substance: **Claude may
+    repeat a figure that the engine put in front of it, and may not introduce one.**
+
+    So every numeric literal in the draft must already appear in `facts` (the gap details, the
+    item descriptions, the period). Anything else is a fabrication, whether it is a plausible
+    total or a deadline nobody set.
+    """
+    text = (text or "").translate(_AR).replace("٪", "%")
+    facts = (facts or "").translate(_AR).replace("٪", "%")
+    supplied = {t.replace(",", "") for t in _NUM_RE.findall(facts)}
+    stripped = _RULECODE_RE.sub(" ", text)
+
+    violations: list[str] = []
+    for tok in _NUM_RE.findall(stripped):
+        norm = tok.replace(",", "")
+        if norm in supplied or norm in _ALLOWED_LITERALS:
+            continue
+        violations.append(f"figure “{tok}” does not appear in the facts supplied")
+    for m in _MAGNITUDE_RE.finditer(stripped):
+        violations.append(f"magnitude/ratio in prose: “{m.group(0)}”")
+
+    seen, out = set(), []
+    for v in violations:
+        if v not in seen:
+            out.append(v)
+            seen.add(v)
+    return {"ok": not out, "violations": out}
+
+
 # =========================================================== verify_conclusion (F1)
 def verify_conclusion(text: str, recon: dict) -> list:
     """A wrong VERDICT passes every figure check. Guard the words that flip the outcome."""
