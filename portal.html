@@ -553,6 +553,41 @@ input.letter-input,select.letter-input{min-height:0}
 :root[data-theme="dark"] .provenance.warn{background:transparent}
 @media(prefers-color-scheme:dark){:root:not([data-theme="light"]) .provenance.warn{background:transparent}}
 .prov-caveat{margin-top:6px;color:var(--med);font-weight:600}
+
+/* ---- the rescoped portal: numbered steps, agent groups, coming-soon cards */
+.panel.step{border-left:3px solid var(--brand)}
+.steph{display:flex;align-items:center;gap:11px}
+.stepn{width:24px;height:24px;border-radius:7px;background:var(--brand);color:#fff;
+  display:grid;place-items:center;font-size:12px;font-weight:700;flex:none}
+.panel.soon{opacity:.72}
+.panel.soon .panel-head h2{color:var(--muted)}
+
+.who{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1px;background:var(--line)}
+.who-block{background:var(--surface);padding:16px 18px}
+.who-block h4{margin:0 0 11px;font-size:12px;text-transform:uppercase;letter-spacing:.6px;
+  color:var(--muted);font-weight:700;display:flex;align-items:center;gap:8px}
+
+.agentgroup{border:1px solid var(--line);border-radius:12px;margin-bottom:12px;overflow:hidden}
+.ag-head{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 15px;
+  background:var(--surface-2);border-bottom:1px solid var(--line)}
+.ag-head h4{margin:0;font-size:14px;font-weight:700}
+.ag-head .sub{flex:1;min-width:180px}
+.checkrow{display:grid;grid-template-columns:130px minmax(0,1fr);gap:14px;padding:13px 15px;
+  border-bottom:1px solid var(--line)}
+.checkrow:last-child{border-bottom:none}
+.cr-verdict{text-align:left}
+.cr-verdict .amt2{margin-top:5px;font-size:13px}
+.cr-claim{font-size:13.5px;line-height:1.5;margin-bottom:6px}
+.cr-line{font-size:12.5px;color:var(--muted);line-height:1.5;margin-top:4px}
+.cr-line .k{display:block;font-size:10.5px;text-transform:uppercase;letter-spacing:.6px;
+  color:var(--faint);font-weight:700;margin-bottom:1px}
+
+.rulerow{display:grid;grid-template-columns:210px minmax(0,1fr);gap:16px;padding:11px 0;
+  border-bottom:1px solid var(--line);font-size:13.5px;line-height:1.5}
+.rulerow:last-child{border-bottom:none}
+.rulerow b{font-weight:650}
+.rulerow span{color:var(--muted)}
+@media(max-width:700px){.rulerow,.checkrow{grid-template-columns:1fr;gap:5px}}
 </style>
 </head>
 <body>
@@ -1690,23 +1725,38 @@ function verifyCalc(stated, query, doc) {
 
 /* the auditor's recorded calculations, per case — the portal's mutable state for this panel */
 const CALCS = {};
-function recordCalc(caseId, label, query, stated) {
-  const docs = documentsFor(caseId);
-  const doc = docs.find((d) => d.filename === query.document) || (docs.length === 1 ? docs[0] : null);
-  if (!doc) {
-    (CALCS[caseId] = CALCS[caseId] || []).push({
-      seq: (CALCS[caseId] || []).length + 1, label, stated, computed: null, delta: 0,
-      status: "not-checkable", query: "", document: query.document || "",
-      explanation: docs.length
-        ? `Several documents are on this case, so it is not clear which one to use. Name one of: ${docs.map((d) => d.filename).join(", ")}.`
-        : "No documents have been uploaded for this case yet." });
-    return;
-  }
-  const v = verifyCalc(stated, query, doc);
-  (CALCS[caseId] = CALCS[caseId] || []).push({
-    seq: (CALCS[caseId] || []).length + 1, label, stated, computed: v.computed, delta: v.delta,
-    status: v.status, query: v.detail.query, document: doc.filename, explanation: v.explanation });
+function recordCalcFromText(caseId, text, docs) {
+  const list = (CALCS[caseId] = CALCS[caseId] || []);
+  const label = String(text).trim().replace(/\s+/g, " ").slice(0, 130);
+  const stated = statedAmountIn(text);
+  const parsed = parseMethod(text, docs);
+  const push = (o) => list.push({ seq: list.length + 1, label, stated: stated || 0,
+                                  understood: parsed.understood, ...o });
+
+  if (!parsed.op)
+    return push({ status: "not-checkable", computed: null, delta: 0, understood: "",
+      explanation: "Could not tell what calculation was done. Name it \u2014 summed, counted, " +
+        "averaged \u2014 and the column it was over." });
+  if (stated === null)
+    return push({ status: "not-checkable", computed: null, delta: 0,
+      explanation: "Read the method, but there is no figure to check it against. Include the " +
+        "number you got." });
+  const doc = docs.find((x) => x.filename === parsed.document);
+  if (!doc)
+    return push({ status: "not-checkable", computed: null, delta: 0,
+      explanation: docs.length > 1
+        ? "Several documents are on this case, so it is not clear which one you used. Name one " +
+          "of: " + docs.map((x) => x.filename).join(", ") + "."
+        : "No document on this case matches what you described." });
+  if (parsed.op !== "count" && !parsed.column)
+    return push({ status: "not-checkable", computed: null, delta: 0,
+      explanation: "Read the method, but not which column it was over. " + doc.filename +
+        " has: " + (doc.columns || []).join(", ") + "." });
+
+  const v = verifyCalc(stated, parsed, doc);
+  push({ status: v.status, computed: v.computed, delta: v.delta, explanation: v.explanation });
 }
+
 const calcsFor = (caseId) => CALCS[caseId] || [];
 
 /* ------------------------------------------- investigation (app/agents/*)
@@ -2034,6 +2084,7 @@ function listCases() {
         case_id: c.case_id, taxpayer: tp.name, vat_no: tp.vat_no, sector: tp.sector,
         period: c.period_from + " → " + c.period_to,
         reason: c.reason, risk: c.risk, referral_priority: c.vat_priority,
+        referral_date: c.referral_date,
         status: c.status, scenario: c.scenario, priority: scoreCase(c),
       };
     });
@@ -2154,16 +2205,11 @@ const STATE_CLASS = { "potential-finding": "pri-high", supported: "pri-low", unr
 /* ------------------------------------------------------------------ shell */
 const HERO_CASE = "CASE-2025-0481";
 const NAV = [
-  { to: "#/", label: "Overview", icon: "▣", match: (p) => p === "/" },
-  { to: "#/cases/" + HERO_CASE, label: "Dossier", icon: "◈",
-    match: (p) => /^\/cases\/[^/]+$/.test(p) },
-  { to: "#/cases/" + HERO_CASE + "/casework", label: "Casework", icon: "✉",
-    match: (p) => p.endsWith("/casework") },
-  { to: "#/cases/" + HERO_CASE + "/reconciliation", label: "Reconciliation", icon: "▦",
-    match: (p) => p.endsWith("/reconciliation") },
-  { to: "#/rules", label: "Rulebook", icon: "▤", match: (p) => p === "/rules" },
+  { to: "#/", label: "Cases", icon: "▣", match: (p) => p === "/" },
+  { to: "#/rules", label: "Agent rulebook", icon: "▤", match: (p) => p === "/rules" },
 ];
-const SOON = ["Legal retrieval", "Audit report", "Auditor approval"];
+const SOON = ["Risk-engine referral", "What ZATCA holds", "Similar past cases",
+              "Legal retrieval", "Auditor approval"];
 
 function shell(path, inner) {
   return '<div class="app"><aside class="side">' +
@@ -2181,18 +2227,43 @@ function shell(path, inner) {
 /* ------------------------------------------------------------------ overview */
 let resetState = "idle";
 
+/* Plain English for the risk engine's codes. The auditor should not have to decode
+   EINV_VS_RETURN to know why a case is on their desk. */
+const REFERRAL_REASON = {
+  EINV_VS_RETURN: "Return does not match the e-invoices",
+  PURCHASE_SALES_RATIO: "Purchases look high against sales",
+  POS_VS_RETURN: "POS takings look higher than declared",
+  FINANCIAL_STATUS: "Financials out of line with the returns",
+  REPEAT_FINDING: "Same issue found in an earlier audit",
+};
+const readableReason = (code) =>
+  REFERRAL_REASON[code] || String(code || "").replace(/_/g, " ").toLowerCase();
+
+/* Where the case actually stands, in the words an auditor would use. */
+function caseStanding(caseId, status) {
+  if (status === "closed") return { label: "Closed", cls: "status" };
+  const loop = ((DATA.casework || {})[caseId] || {}).loop || { round: 0, rounds: [], blocking: 0 };
+  if (!loop.round) return { label: "Pending — send the request email", cls: "pri-medium" };
+  const round = loop.rounds[loop.rounds.length - 1] || {};
+  if (!round.answered_at) return { label: "With the taxpayer", cls: "status" };
+  if (loop.blocking) return { label: "Response received — gaps to chase", cls: "pri-high" };
+  return { label: "Ready for review", cls: "pri-low" };
+}
+
+const daysOpen = (referral) =>
+  referral ? Math.max(0, Math.round((new Date(DEMO_TODAY) - new Date(referral)) / 86400000)) : null;
+
 function viewOverview() {
   const ov = overviewData();
   const cases = listCases();
   const tiles = [
-    { n: money(ov.exposure_total), l: "Output-VAT exposure surfaced", note: ov.findings + " potential finding" + (ov.findings === 1 ? "" : "s") },
-    { n: money(ov.difference_total), l: "Differences to account for", note: "expected vs declared, across open cases" },
-    { n: Math.round(ov.auto_clearable_pct * 100) + "%", l: "Cases clearable with zero taxpayer contact", note: ov.auto_clearable + " of " + ov.open_cases + " open cases" },
-    { n: String(ov.needs_action), l: "Cases needing auditor action", note: ov.findings + " finding" + (ov.findings === 1 ? "" : "s") + " · " + ov.to_review + " to review" },
+    { n: String(ov.open_cases), l: "Open cases", note: "referred and not yet closed" },
+    { n: money(ov.exposure_total), l: "Output-VAT exposure surfaced",
+      note: ov.findings + " potential finding" + (ov.findings === 1 ? "" : "s") },
   ];
 
   return '<div class="page">' +
-    '<div class="page-head"><div><p class="eyebrow">Command deck</p><h1>Overview</h1></div>' +
+    '<div class="page-head"><div><p class="eyebrow">VAT audit</p><h1>Cases</h1></div>' +
     '<button class="btn-ghost' + (resetState === "confirm" ? " confirm" : "") + '" data-act="reset" ' +
     'title="Restore the demo to its seeded state">' +
     (resetState === "confirm" ? "Confirm reset?" : "↻ Reset demo") + '</button></div>' +
@@ -2201,25 +2272,25 @@ function viewOverview() {
       '<div class="tile"><div class="tn">' + esc(t.n) + '</div><div class="tl">' + esc(t.l) +
       '</div><div class="tnote">' + esc(t.note) + '</div></div>').join("") + '</div>' +
 
-    '<div class="panel"><div class="panel-head"><h2>Flagged cases</h2>' +
-    '<span class="muted">Sorted by composite priority — exposure · deadline · history · quick-win</span></div>' +
+    '<div class="panel"><div class="panel-head"><h2>Your cases</h2>' +
+    '<span class="muted">Open one to work it</span></div>' +
     '<div class="tablescroll"><table><thead><tr>' +
-    '<th>Priority</th><th>Case</th><th>Taxpayer</th><th>Sector</th><th>Referral reason</th><th>Deadline</th><th>Status</th>' +
+    '<th>Priority</th><th>Case</th><th>Taxpayer</th><th>Why it was referred</th>' +
+    '<th>Days open</th><th>Where it stands</th>' +
     '</tr></thead><tbody>' +
     cases.map((c) => {
       const p = c.priority;
       const tip = "Exposure " + Math.round(p.signals.exposure * 40) + "/40 · Deadline " + Math.round(p.signals.deadline * 30) +
         "/30 · History " + Math.round(p.signals.history * 20) + "/20 · Quick-win " + Math.round(p.signals.quickwin * 10) + "/10";
-      const dl = p.deadline_days == null ? "—" : p.deadline_days < 0 ? "past due" : p.deadline_days + "d";
+      const days = daysOpen(c.referral_date);
+      const st = caseStanding(c.case_id, c.status);
       return '<tr class="rowlink" data-case="' + esc(c.case_id) + '">' +
-        '<td><span class="pscore pri-' + p.band + '" title="' + esc(tip) + '">' + p.score + '</span>' +
-        '<div class="sub">' + esc(p.driver) + '</div></td>' +
+        '<td><span class="pscore pri-' + p.band + '" title="' + esc(tip) + '">' + p.score + '</span></td>' +
         '<td class="mono">' + esc(c.case_id) + '</td>' +
         '<td>' + esc(c.taxpayer) + '<div class="sub mono">' + esc(c.vat_no) + '</div></td>' +
-        '<td>' + esc(c.sector) + '</td>' +
-        '<td><code>' + esc(c.reason) + '</code></td>' +
-        '<td class="mono">' + esc(dl) + '</td>' +
-        '<td><span class="pill status">' + esc(c.status) + '</span></td></tr>';
+        '<td>' + esc(readableReason(c.reason)) + '</td>' +
+        '<td class="mono">' + (days == null ? "—" : days + " days") + '</td>' +
+        '<td><span class="pill ' + st.cls + '">' + esc(st.label) + '</span></td></tr>';
     }).join("") +
     '</tbody></table></div></div>' +
 
@@ -2247,7 +2318,7 @@ function scopePanel() {
 }
 
 /* ------------------------------------------------------------------ rulebook */
-let rulesQ = "", rulesFam = null, rulesSev = null, rulesGap = null, rulesKind = null, confirmDelete = null;
+let confirmDelete = null;   // still read by the rule-delete confirm flow
 const SEV = [{ v: "high", l: "High" }, { v: "medium", l: "Medium" }, { v: "low", l: "Low" }];
 const GAP = [{ v: "yes", l: "Explains a gap" }, { v: "partial", l: "Partial" }, { v: "no", l: "No direct gap" }];
 const KIND = [
@@ -2257,59 +2328,70 @@ const KIND = [
 ];
 
 function viewRules() {
-  const rules = STATE.rules;
-  const families = [...new Set(rules.map((r) => r.family))];
-  const shown = rules.filter((r) => {
-    const hay = (r.code + " " + r.title + " " + r.family + " " + r.explains_gap + " " +
-      r.reason_code + " " + r.reason_label).toLowerCase();
-    if (rulesQ && !hay.includes(rulesQ.toLowerCase())) return false;
-    if (rulesFam && r.family !== rulesFam) return false;
-    if (rulesSev && r.severity_band !== rulesSev) return false;
-    if (rulesGap && r.gap_band !== rulesGap) return false;
-    if (rulesKind && r.rule_kind !== rulesKind) return false;
-    return true;
-  });
-  const active = rules.filter((r) => r.enabled).length;
-  const wired = rules.filter((r) => r.wired).length;
+  const AGENT_RULES = [
+    { agent: "Regulations", blurb: "The agent the audit team called most important. It may not " +
+        "assert a condition without an article behind it, so today it runs the checks that are " +
+        "pure field presence and stays quiet on questions of law.",
+      rules: [
+        ["Valid tax invoice", "Every row must carry the date, the number, the counterparty, the " +
+          "taxable amount and the VAT. A row missing any of them cannot support the deduction."],
+        ["Valid credit note", "A note must carry its own date and number and reference the " +
+          "invoice it corrects, or it cannot reduce output tax already accounted for."],
+        ["Blocked input VAT", "Entertainment, hospitality, passenger vehicles, staff benefits " +
+          "and gifts are flagged for review against the article. Flagged, never concluded."],
+      ] },
+    { agent: "Data Entry", blurb: "Rules out a keying error before anyone treats a difference " +
+        "as real revenue.",
+      rules: [
+        ["Decimal shift", "Your own example: SAR 10,000 keyed where the documents say SAR 1,000. " +
+          "Tested by asking whether any power of ten of the declared figure lands on the supported one."],
+        ["Digit transposition", "The same digits in another order \u2014 the signature of a " +
+          "keying slip rather than a missing supply."],
+        ["Out of character", "A declaration far outside this taxpayer's own filing range."],
+      ] },
+    { agent: "Calculation", blurb: "Totals what the taxpayer sent and sets it against what they " +
+        "declared. Also checks the figures the auditor worked out by hand.",
+      rules: [
+        ["Listing above the return", "The taxpayer's own document totals more than the box they filed."],
+        ["POS or bank above the return", "An independent record of takings exceeds the declared sales."],
+        ["Undisclosed sales", "Supplies evidenced by the listing that the return never mentions."],
+        ["The auditor's own figure", "A number recorded during the review that cannot be " +
+          "reproduced from the document it was taken from."],
+      ] },
+    { agent: "Evidence & Coverage", blurb: "Asks whether there is anything behind what was claimed.",
+      rules: [
+        ["No supporting documentation", "Input VAT claimed on lines that identify neither the " +
+          "invoice nor the supplier."],
+        ["Documents do not correspond", "What was supplied does not describe the same population " +
+          "as the declared sales."],
+        ["No trial balance", "The records exceed the return and nothing was supplied to trace " +
+          "the difference into the accounts. Both conditions, or it is not a finding."],
+        ["Undisclosed secondary activity", "Revenue described in terms matching none of the " +
+          "registered economic activities."],
+        ["Lack of cooperation", "Items requested and never supplied."],
+      ] },
+  ];
 
   return '<div class="page">' +
-    '<div class="page-head"><div><p class="eyebrow">Detection rules</p><h1>VAT Mistakes Rulebook</h1></div></div>' +
-    '<div class="controls">' +
-    '<div class="search"><input id="rule-q" placeholder="Search rules — reverse charge, late filing, credit note, Box 9…" value="' + esc(rulesQ) + '" /></div>' +
-    families.map((f) => '<button class="chip' + (rulesFam === f ? " on" : "") + '" data-fam="' + esc(f) + '">' + esc(f) + '</button>').join("") +
-    SEV.map((s) => '<button class="chip sev-' + s.v + (rulesSev === s.v ? " on" : "") + '" data-sev="' + s.v + '">' + s.l + '</button>').join("") +
-    GAP.map((g) => '<button class="chip' + (rulesGap === g.v ? " on" : "") + '" data-gap="' + g.v + '">' + g.l + '</button>').join("") +
-    KIND.map((k) => '<button class="chip kind-' + k.v + (rulesKind === k.v ? " on" : "") + '" data-kind="' + k.v +
-      '" title="What kind of object this rule is — an explanation, a mistake, or a risk signal">' + k.l + '</button>').join("") +
-    '<span class="rescount">' + active + ' active · ' + wired + ' wired · ' + shown.length + ' of ' + rules.length + ' shown</span>' +
-    '</div>' +
-    '<div class="cards">' + shown.map((r) =>
-      '<div class="card sev-' + r.severity_band + (r.enabled ? "" : " off") + '">' +
-      '<div class="card-top"><span class="code">' + esc(r.code) + '</span><span class="fam">' + esc(r.family) + '</span></div>' +
-      '<h3>' + esc(r.title) + '</h3>' +
-      '<div class="card-kind"><span class="kindtag kind-' + r.rule_kind + '">' + esc(r.rule_kind) + '</span>' +
-      (r.reason_code ? '<span class="rc" title="' + esc(r.reason_label) + '">' + esc(r.reason_code) + '</span>' : "") +
-      '<span class="stagetag" title="Stage in the evaluation precedence">' + esc(r.stage) + '</span></div>' +
-      '<div class="card-badges"><span class="badge gap-' + r.gap_band + '">' +
-      esc(r.gap_band === "no" ? "No direct gap" : r.explains_gap) + '</span>' +
-      '<span class="pill sev-' + r.severity_band + '">' + esc(r.severity) + '</span></div>' +
-      '<div class="card-foot">' +
-      '<label class="switch"><input type="checkbox" data-toggle="' + esc(r.code) + '"' + (r.enabled ? " checked" : "") + ' />' +
-      '<span class="switch-track"><span class="switch-thumb"></span></span>' +
-      '<span class="switch-label">' + (r.enabled ? "Active" : "Disabled") + '</span></label>' +
-      '<div class="foot-right">' +
-      (r.wired ? '<span class="live-badge" title="Wired into the live reconciliation engine">● live</span>' : "") +
-      (confirmDelete === r.code
-        ? '<span class="del-confirm"><button class="linklike danger" data-del="' + esc(r.code) + '">delete</button>' +
-          '<button class="linklike" data-delcancel="1">cancel</button></span>'
-        : '<button class="card-del" title="Delete rule" data-delask="' + esc(r.code) + '">×</button>') +
-      '</div></div></div>').join("") +
-    '</div></div>';
+    '<div class="page-head"><div><p class="eyebrow">Reference</p><h1>What the agents test</h1>' +
+    '</div></div>' +
+    '<p class="detail-note" style="max-width:70ch;margin:0 0 22px">Each agent proposes; a ' +
+    'deterministic check settles it. No agent states a figure and no agent reaches a conclusion ' +
+    '&mdash; it says what is worth testing and why, and the engine decides.</p>' +
+    AGENT_RULES.map((a) => '<div class="panel" style="margin-bottom:16px">' +
+      '<div class="panel-head"><h2>' + esc(a.agent) + '</h2>' +
+      '<span class="pill status">' + a.rules.length + ' checks</span></div>' +
+      '<div class="ai-body"><p class="detail-note" style="margin:0 0 14px">' + esc(a.blurb) +
+      '</p>' +
+      a.rules.map(([name, what]) => '<div class="rulerow"><b>' + esc(name) + '</b>' +
+        '<span>' + esc(what) + '</span></div>').join("") +
+      '</div></div>').join("") +
+    '<div class="panel soon"><div class="panel-head"><h2>The full VAT mistakes rulebook</h2>' +
+    '<span class="pill status">Coming soon</span></div>' +
+    '<div class="panel-note" style="border-top:none">All 66 catalogued rules, with the ' +
+    'regulation articles behind them once the audit team supplies the corpus.</div></div>' +
+    '</div>';
 }
-
-/* ------------------------------------------------------------------ reconciliation */
-let letterText = "", extraction = null, respLabel = "", respAmount = "", respDoc = "";
-let reportShown = 0, reportTimer = null, reportGen = 0;
 
 function invoiceTable(invoices) {
   if (!invoices || !invoices.length) return '<p class="muted">No underlying invoices.</p>';
@@ -2507,11 +2589,25 @@ function renderMd(text) {
    no corpus to re-search — so the Python output is embedded exactly. The lifecycle rail sits
    between the two: it reads the *live* reconciliation, so it is computed here. */
 
+/* One header for every tab of a case: who it is, and where it stands. */
+function caseHeader(caseId) {
+  const c = caseById(caseId);
+  const tp = c ? taxpayerById(c.taxpayer_id) : null;
+  const st = caseStanding(caseId, c && c.status);
+  const days = daysOpen(c && c.referral_date);
+  return '<div class="page-head"><div>' +
+    '<p class="eyebrow"><a href="#/">Cases</a> &middot; ' + esc(caseId) +
+    (days == null ? "" : ' &middot; open ' + days + ' days') + '</p>' +
+    '<h1>' + esc(tp ? tp.name : caseId) + '</h1></div>' +
+    '<span class="pill ' + st.cls + '" style="font-size:13px;padding:6px 14px">' +
+    esc(st.label) + '</span></div>';
+}
+
 function caseTabs(id, tab) {
   const T = [
-    ["dossier", "", "Dossier", "What ZATCA already holds"],
-    ["casework", "/casework", "Casework", "Request, response, gaps"],
-    ["reconciliation", "/reconciliation", "Reconciliation", "What qualifies, and what it means"],
+    ["dossier", "", "Taxpayer", "Who you are dealing with"],
+    ["casework", "/casework", "Casework", "The email, and what came back"],
+    ["reconciliation", "/reconciliation", "Review", "What the agents found"],
   ];
   return '<div class="casetabs">' + T.map(([key, suffix, label, hint]) =>
     '<a class="casetab' + (key === tab ? " active" : "") + '" href="#/cases/' +
@@ -2521,86 +2617,64 @@ function caseTabs(id, tab) {
 
 /* Mirror of backend/app/casefile/orchestrator.py — derived from the case's own data, so it
    cannot drift from the reconciliation the same page is showing. */
+/* Where the case stands, under the post-receipt scope. Planning is gone, so the rail runs
+   from the email that went out to the drafted conclusion. Derived from the case's own data. */
 function lifecycle(id) {
   const MARK = { done: "✓", active: "▶", waiting: "⧗", pending: "", skipped: "—" };
   const work = (DATA.casework || {})[id] || {};
   const loop = work.loop || { round: 0, rounds: [], blocking: 0, complete: false };
-  const dossier = (DATA.dossiers || {})[id] || { sources: [], referral: {} };
+  const docs = (loop.documents || []).filter((x) => !x.superseded)
+    .concat(EXTRA_DOCS[id] || []);
   let recon = null;
   try { recon = reconcileCase(id); } catch (e) { recon = null; }
 
-  const settled = recon && Math.abs(recon.unexplained) <= recon.materiality &&
-    (!recon.purchase || recon.purchase.state !== "potential-finding");
-  const held = (dossier.sources || []).filter((x) => x.held).length;
+  const emailed = !!SENT_EMAIL[id] || loop.round > 0;
+  const received = docs.length > 0;
+  const gaps = (loop.rounds || []).flatMap((r) => r.gaps || [])
+    .filter((g) => g.severity === "blocking").length;
   const stages = [];
 
-  stages.push({ key: "intake", label: "Intake", state: "done", owner: "system",
-    summary: held + " of " + (dossier.sources || []).length + " internal sources on file." });
+  stages.push(emailed
+    ? { key: "request", label: "Request sent", state: "done", owner: "auditor",
+        summary: "The request email is on file." }
+    : { key: "request", label: "Request sent", state: "active", owner: "auditor",
+        summary: "No request email recorded yet.",
+        next_action: "Paste the email you sent the taxpayer." });
 
-  const started = loop.round > 0;
-  if (!started && settled) {
-    stages.push({ key: "planning", label: "Planning", state: "skipped", owner: "auditor",
-      summary: "Not needed — the internal evidence settles the case." });
-    stages.push({ key: "correspondence", label: "Request & response", state: "skipped",
-      owner: "taxpayer", summary: "Not needed — the taxpayer was never contacted." });
-  } else if (!started) {
-    stages.push({ key: "planning", label: "Planning", state: "active", owner: "auditor",
-      summary: "No information request has been drafted yet.",
-      next_action: "Review the plan and draft the request." });
-    stages.push({ key: "correspondence", label: "Request & response", state: "pending",
-      owner: "taxpayer", summary: "Not started." });
-  } else {
-    const cur = loop.rounds[loop.rounds.length - 1];
-    stages.push({ key: "planning", label: "Planning", state: "done", owner: "auditor",
-      summary: loop.rounds[0].items.length + " items requested in round 1." });
-    if (loop.complete) {
-      stages.push({ key: "correspondence", label: "Request & response", state: "done",
+  stages.push(received
+    ? { key: "received", label: "Documents in", state: "done", owner: "taxpayer",
+        summary: docs.length + " document" + (docs.length === 1 ? "" : "s") + " received." }
+    : { key: "received", label: "Documents in", state: emailed ? "waiting" : "pending",
         owner: "taxpayer",
-        summary: "Satisfied after " + loop.round + " round" + (loop.round === 1 ? "" : "s") + "." });
-    } else if (cur.status === "issued") {
-      stages.push({ key: "correspondence", label: "Request & response", state: "waiting",
-        owner: "taxpayer", summary: "Round " + cur.seq + " issued; awaiting the response.",
-        next_action: "Waiting on the taxpayer." });
-    } else {
-      stages.push({ key: "correspondence", label: "Request & response", state: "active",
-        owner: "auditor",
-        summary: "Round " + cur.seq + " answered, but " + loop.blocking +
-          " item" + (loop.blocking === 1 ? "" : "s") + " fall short of the request.",
-        next_action: "Send the drafted follow-up, or waive what is not needed." });
-    }
-  }
+        summary: emailed ? "Waiting on the taxpayer." : "Nothing received yet.",
+        next_action: emailed ? "Waiting on the taxpayer." : undefined });
 
-  const loopDone = settled || loop.complete;
-  if (!recon) {
-    stages.push({ key: "review", label: "Substantive review", state: "pending", owner: "auditor",
-      summary: "No return on file to reconcile." });
-  } else if (settled) {
-    stages.push({ key: "review", label: "Substantive review", state: "done", owner: "auditor",
-      summary: "Supported by the qualified evidence within materiality." });
-  } else if (loop.complete) {
-    stages.push({ key: "review", label: "Substantive review", state: "active", owner: "auditor",
-      summary: money(recon.unexplained) + " unexplained with the evidence complete.",
-      next_action: "Validate the leading hypothesis and reach a conclusion." });
-  } else {
-    stages.push({ key: "review", label: "Substantive review", state: "active", owner: "auditor",
-      summary: money(recon.unexplained) + " unexplained on internal data — provisional until the " +
-        "response is complete.",
-      next_action: "Continue the review; do not conclude until the response is complete." });
-  }
+  stages.push(!received
+    ? { key: "complete", label: "Completeness", state: "pending", owner: "system",
+        summary: "Nothing to check yet." }
+    : gaps
+      ? { key: "complete", label: "Completeness", state: "active", owner: "auditor",
+          summary: gaps + " point" + (gaps === 1 ? "" : "s") + " fall short of the request.",
+          next_action: "Send the drafted follow-up, or waive what is not needed." }
+      : { key: "complete", label: "Completeness", state: "done", owner: "system",
+          summary: "The response meets the request." });
 
-  if (loopDone && recon) {
-    stages.push({ key: "closure", label: "Closure", state: "active", owner: "auditor",
-      summary: "Ready to draft the audit report and the taxpayer letter.",
-      next_action: "Review the drafts and approve." });
-  } else {
-    stages.push({ key: "closure", label: "Closure", state: "pending", owner: "auditor",
-      summary: "Opens once the review can conclude." });
-  }
+  const investigated = received;
+  stages.push(investigated
+    ? { key: "review", label: "Agent review", state: "done", owner: "system",
+        summary: "The agents have run against the documents received." }
+    : { key: "review", label: "Agent review", state: "pending", owner: "system",
+        summary: "Opens once documents are received." });
 
-  const current = stages.find((x) => x.state === "active" || x.state === "waiting") ||
-    stages[stages.length - 1];
-  return { stages: stages, current: current, MARK: MARK,
-    noContact: stages.some((x) => x.key === "correspondence" && x.state === "skipped") };
+  stages.push({ key: "closure", label: "Closure", state: investigated ? "active" : "pending",
+    owner: "auditor",
+    summary: investigated ? "Letter and report drafted for approval."
+                          : "Not reached yet.",
+    next_action: investigated ? "Review the drafts and approve." : undefined });
+
+  const current = stages.find((x) => x.state === "active") ||
+    stages.find((x) => x.state === "waiting") || stages[stages.length - 1];
+  return { stages, current, MARK, noContact: false };
 }
 
 function lifecycleRail(id) {
@@ -2625,620 +2699,556 @@ function kvBlock(rows) {
     (v === null || v === undefined || v === "" ? "—" : v) + '</span></div>').join("") + '</div>';
 }
 
+/* A card for something the client has said we will not be given. Naming it keeps the shape
+   of the real product visible without inventing data to fill it. */
+function soonCard(title, why) {
+  return '<div class="panel soon"><div class="panel-head"><h2>' + esc(title) + '</h2>' +
+    '<span class="pill status">Coming soon</span></div>' +
+    '<div class="panel-note" style="border-top:none">' + esc(why) + '</div></div>';
+}
+
 function viewDossier(caseId) {
   const d = (DATA.dossiers || {})[caseId];
-  if (!d) return '<div class="page"><div class="panel"><div class="notice err">No dossier for ' +
+  if (!d) return '<div class="page"><div class="panel"><div class="notice err">No taxpayer record for ' +
     esc(caseId) + '.</div></div></div>';
-  const tp = d.taxpayer, r = d.referral, b = d.blocks || {};
-  const c = tp.compliance || {};
-  const held = (d.sources || []).filter((x) => x.held).length;
-  const num = (n) => (n === null || n === undefined ? "—" : Number(n).toLocaleString("en-US"));
+  const tp = d.taxpayer;
+  const h = tp.audit_history || {};
+  const c = caseById(caseId);
 
-  const signals = (r.signals || []).length ? '<div class="tablescroll"><table class="inv-table">' +
-    '<thead><tr><th>Contributing signal</th><th style="text-align:right">Value</th>' +
-    '<th style="width:120px">Weight</th></tr></thead><tbody>' +
-    r.signals.map((x) => '<tr><td>' + esc(x.label) + ' <span class="sub mono">' + esc(x.code) +
-      '</span></td><td class="mono" style="text-align:right">' + num(x.value) + '</td>' +
-      '<td><span class="meter"><i style="width:' + (x.weight * 100) + '%"></i></span></td></tr>'
-    ).join("") + '</tbody></table></div>' : "";
+  // ---- who they are: registration, activities, related parties
+  const who = '<div class="panel"><div class="panel-head"><h2>Who you are dealing with</h2>' +
+    '<span class="pill status">From the registration</span></div>' +
+    '<div class="who">' +
+    '<div class="who-block">' +
+    '<h4>Registration</h4>' +
+    kvBlock([
+      ["Name", esc(tp.name)],
+      ["VAT registration", '<span class="mono">' + esc(tp.vat_no) + '</span>'],
+      ["Legal form", esc(tp.legal_form || tp.bp_type || "—")],
+      ["Registered since", esc(tp.registered_from || "—")],
+      ["Period under review", esc(c ? c.period_from + " to " + c.period_to : "—")],
+    ]) + '</div>' +
 
-  const sources = '<div class="srcgrid">' + (d.sources || []).map((x) =>
-    '<div class="srccard' + (x.held ? " held" : "") + '"><span class="srcmark">' +
-    (x.held ? "✓" : "·") + '</span><div><b>' + esc(x.label) + '</b><small>' +
-    (x.held ? (x.count != null ? num(x.count) + " record" + (x.count === 1 ? "" : "s") : "on file")
-            : "not held") +
-    (x.as_of ? " · as of " + esc(x.as_of) : "") + '</small></div></div>').join("") + '</div>';
-
-  const acts = '<ul class="acts">' + (tp.activities || []).map((a) =>
-    '<li><code>' + esc(a.isic) + '</code> ' + esc(a.description) +
-    (a.primary ? '<span class="pill pri-low">primary</span>' : "") + '</li>').join("") + '</ul>';
-
-  const prior = (b["prior-audits"] || {});
-  const priorTable = prior.count ? '<div class="tablescroll"><table class="inv-table">' +
-    '<thead><tr><th>Case</th><th>Period</th><th>Outcome</th>' +
-    '<th style="text-align:right">Assessed</th><th style="text-align:right">Rounds</th></tr></thead><tbody>' +
-    (prior.audits || []).map((a) => '<tr><td class="mono">' + esc(a.case_id) + '</td>' +
-      '<td class="mono">' + esc(a.period_from) + '</td><td><span class="pill ' +
-      (a.result === "FINDING" ? "pri-high" : "pri-low") + '">' +
-      esc(a.result === "FINDING" ? a.root_cause : "No finding") + '</span></td>' +
-      '<td class="mono" style="text-align:right">' + (a.assessed ? money(a.assessed) : "—") + '</td>' +
-      '<td class="mono" style="text-align:right">' + (a.rounds || "—") + '</td></tr>').join("") +
-    '</tbody></table></div>' : '<p class="muted">No previous audit on file — this is the first.</p>';
-
-  const fin = (b.financials || {});
-  const finTable = fin.count ? '<div class="tablescroll"><table class="inv-table">' +
-    '<thead><tr><th>Year</th><th style="text-align:right">Turnover</th>' +
-    '<th style="text-align:right">Purchases</th><th style="text-align:right">Purchase ratio</th>' +
-    '<th style="text-align:right">Gross margin</th></tr></thead><tbody>' +
-    (fin.years || []).map((y) => '<tr><td class="mono">' + y.fiscal_year + '</td>' +
-      '<td class="mono" style="text-align:right">' + money(y.turnover) + '</td>' +
-      '<td class="mono" style="text-align:right">' + money(y.purchases) + '</td>' +
-      '<td class="mono" style="text-align:right">' + (y.purchase_ratio_pct != null ? y.purchase_ratio_pct + "%" : "—") + '</td>' +
-      '<td class="mono" style="text-align:right">' + (y.gross_margin_pct != null ? y.gross_margin_pct + "%" : "—") + '</td></tr>').join("") +
-    '</tbody></table></div>' : '<p class="muted">No financial information on file.</p>';
-
-  const cus = (b.customs || {});
-  const cusPanel = cus.count ? kvBlock([
-      ["Import VAT in period", money(cus.import_vat_in_period || 0)],
-      ["Export value in period", money(cus.export_value_in_period || 0)]]) +
-    '<div class="tablescroll"><table class="inv-table"><thead><tr><th>Declaration</th><th>Date</th>' +
-    '<th>Goods</th><th style="text-align:right">Value</th><th style="text-align:right">VAT</th></tr></thead><tbody>' +
-    (cus.declarations || []).map((x) => '<tr' + (x.in_period ? "" : ' class="dim"') + '>' +
-      '<td class="mono">' + esc(x.declaration_no) + '</td><td class="mono">' + esc(x.date) + '</td>' +
-      '<td>' + esc(x.goods) + ' <span class="sub">· HS ' + esc(x.hs_chapter) + '</span></td>' +
-      '<td class="mono" style="text-align:right">' + money(x.customs_value) + '</td>' +
-      '<td class="mono" style="text-align:right">' + (x.vat_paid ? money(x.vat_paid) : "—") + '</td></tr>').join("") +
-    '</tbody></table></div><p class="detail-note">Held internally, so import declarations are ' +
-    'never requested from the taxpayer.</p>'
-    : '<p class="muted">No customs movements on file for this taxpayer.</p>';
-
-  const einv = (b["e-invoices"] || {});
-  const einvTable = '<div class="tablescroll"><table class="inv-table"><thead><tr>' +
-    '<th>Direction</th><th>Type</th><th>Status</th><th style="text-align:right">Count</th>' +
-    '<th style="text-align:right">VAT</th></tr></thead><tbody>' +
-    (einv.groups || []).map((g) => '<tr><td>' + esc(g.direction) + '</td><td class="mono">' +
-      g.type_code + '</td><td>' + esc(g.status) + '</td>' +
-      '<td class="mono" style="text-align:right">' + g.count + '</td>' +
-      '<td class="mono" style="text-align:right">' + money(g.vat) + '</td></tr>').join("") +
-    '</tbody></table></div>';
-
-  return '<div class="page">' +
-    '<header class="page-head"><div><h1>' + esc(tp.name) + '</h1><p class="sub">' +
-      esc(d.case_id) + ' · ' + esc(d.period_from) + ' → ' + esc(d.period_to) + ' · ' +
-      esc(d.audit_type) + ' audit</p></div><div class="chips">' +
-      '<span class="pill">' + esc(tp.size) + '</span><span class="pill">' + esc(tp.sector) + '</span>' +
-      (tp.importer ? '<span class="pill">Importer</span>' : "") +
-      (tp.exporter ? '<span class="pill">Exporter</span>' : "") +
-      (tp.pos_registered ? '<span class="pill">POS</span>' : "") +
-    '</div></header>' +
-    caseTabs(caseId, "dossier") + lifecycleRail(caseId) +
-
-    '<div class="panel"><div class="panel-head"><h2>Why this case was raised</h2>' +
-      (r.score != null ? '<span class="sub">Risk score ' + r.score +
-        (r.threshold ? ' · threshold ' + r.threshold : "") + '</span>' : "") +
-    '</div><div class="panel-body"><p class="brief-head">' + esc(r.indicator_label) + '</p>' +
-      (r.narrative ? '<p class="detail-note">' + esc(r.narrative) + '</p>' : "") + signals +
-      ((r.consult_first || []).length ? '<p class="detail-note"><b>Consult first:</b> ' +
-        r.consult_first.map(esc).join(", ") + '. The risk engine is upstream — this is its ' +
-        'output, not our reconstruction.</p>' : "") +
-    '</div></div>' +
-
-    '<div class="panel"><div class="panel-head"><h2>What ZATCA already holds</h2>' +
-      '<span class="sub">' + held + ' of ' + (d.sources || []).length + ' sources on file</span>' +
-    '</div><div class="panel-body">' + sources +
-      '<p class="detail-note">Anything marked on file is <b>not requested from the taxpayer</b>. ' +
-      'The Casework tab shows each item dropped for that reason.</p></div></div>' +
-
-    '<div class="grid-2">' +
-      '<div class="panel"><div class="panel-head"><h2>Who this taxpayer is</h2></div>' +
-      '<div class="panel-body">' + kvBlock([
-        ["VAT registration", '<span class="mono">' + esc(tp.vat_no) + '</span>'],
-        ["Legal form", esc(tp.legal_form || tp.bp_type)],
-        ["Registered", tp.registered_from ? esc(tp.registered_from) +
-          (tp.registered_years ? " · " + tp.registered_years + " yrs" : "") : null],
-        ["E-invoicing since", tp.einvoicing_onboarded ? esc(tp.einvoicing_onboarded) : null],
-        ["Size", esc(tp.size)], ["Employees", num(tp.employees)],
-        ["Branches", num(tp.branches)], ["Accounting", esc(tp.accounting_method)],
-      ]) + '<h4>Registered economic activities</h4>' + acts +
-      '<p class="detail-note">What the business is registered to do is the reference point for ' +
-      'whether a purchase relates to the economic activity — a question the auditors put firmly ' +
-      'on the human side of the line.</p>' +
-      ((tp.related_parties || []).length ? '<h4>Related parties</h4><ul class="acts">' +
-        tp.related_parties.map((x) => '<li>' + esc(x.name) + ' <span class="sub mono">' +
-          esc(x.vat_no) + '</span><span class="pill">' + esc(x.relation) + '</span></li>').join("") +
-        '</ul>' : "") +
-      '</div></div>' +
-
-      '<div class="panel"><div class="panel-head"><h2>How they have behaved</h2></div>' +
-      '<div class="panel-body"><h4>Filing and payment</h4>' + kvBlock([
-        ["Returns due", num(c.returns_due)], ["Returns filed", num(c.returns_filed)],
-        ["Filed late", num(c.filed_late)], ["Average days late", num(c.avg_days_late)],
-        ["Payments late", num(c.payments_late)],
-        ["Outstanding", c.outstanding_balance ? money(c.outstanding_balance) : "None"],
-      ]) + '<h4>Audit history</h4>' + priorTable +
-      '<h4>Financial information held</h4>' + finTable + '</div></div>' +
+    '<div class="who-block">' +
+    '<h4>Registered economic activities</h4>' +
+    ((tp.activities || []).length
+      ? '<div class="tablescroll"><table class="inv-table"><thead><tr>' +
+        '<th style="width:70px">ISIC</th><th>Activity</th><th style="width:80px"></th>' +
+        '</tr></thead><tbody>' +
+        tp.activities.map((a) => '<tr><td class="mono">' + esc(a.isic) + '</td><td>' +
+          esc(a.description) + '</td><td>' +
+          (a.primary ? '<span class="pill status">primary</span>' : "") + '</td></tr>').join("") +
+        '</tbody></table></div>' +
+        '<p class="detail-note" style="margin:8px 0 0">Revenue described in terms that match ' +
+        'none of these is a secondary activity the return may not disclose &mdash; which is why ' +
+        'the Evidence agent needs this list.</p>'
+      : '<p class="muted">No activities recorded.</p>') +
     '</div>' +
 
-    '<div class="grid-2">' +
-      '<div class="panel"><div class="panel-head"><h2>Imports and exports</h2>' +
-        (cus.in_period != null ? '<span class="sub">' + cus.in_period +
-          ' declarations in the period</span>' : "") +
-      '</div><div class="panel-body">' + cusPanel + '</div></div>' +
-      '<div class="panel"><div class="panel-head"><h2>E-invoices in the period</h2>' +
-        '<span class="sub">' + num(einv.count || 0) + ' documents</span></div>' +
-      '<div class="panel-body">' + einvTable +
-      '<p class="detail-note">A count and a sum only. What the population <i>should</i> add to, ' +
-      'once qualification rules run, is the Reconciliation tab.</p></div></div>' +
-    '</div>' +
-
-    precedentPanel(caseId) +
-  '</div>';
-}
-
-/* ------------------------------------------------------------------ precedent */
-function precedentPanel(caseId) {
-  const brief = (DATA.precedents || {})[caseId];
-  if (!brief) return "";
-  const s = brief.summary;
-  const pct = (n) => (n % 1 ? n.toFixed(1) : n) + "%";
-  const noF = (s.outcomes || []).find((o) => o.key === "NO_FINDING");
-  const fnd = (s.outcomes || []).find((o) => o.key === "FINDING");
-
-  const tally = (rows, warn) => '<ul class="tally">' + rows.slice(0, 4).map((r) =>
-    '<li><code>' + esc(r.key) + '</code><span class="meter"><i' + (warn ? ' class="warn"' : "") +
-    ' style="width:' + r.pct + '%"></i></span><b>' + pct(r.pct) + '</b></li>').join("") + '</ul>';
-
-  return '<div class="panel"><div class="panel-head">' +
-    '<div class="ai-h"><span class="chip-det">Deterministic</span><h2>Precedent</h2></div>' +
-    '<span class="sub">' + s.comparable + ' comparable closed case' +
-      (s.comparable === 1 ? "" : "s") + (s.widened ? " · search widened" : "") + '</span>' +
-    '</div><div class="panel-body">' +
-    '<p class="detail-note" style="margin-top:0">When the risk engine raised <b>' +
-      esc(s.indicator_label) + '</b> before, on taxpayers of a similar sector, size and filing ' +
-      'record:</p>' +
-    (noF && fnd ? '<div class="outcome-bar">' +
-      '<div class="ob-seg ob-clear" style="width:' + noF.pct + '%">' +
-        (noF.pct >= 18 ? '<span>' + pct(noF.pct) + ' no finding</span>' : "") + '</div>' +
-      '<div class="ob-seg ob-finding" style="width:' + fnd.pct + '%">' +
-        (fnd.pct >= 18 ? '<span>' + pct(fnd.pct) + ' finding</span>' : "") + '</div></div>' : "") +
-    '<div class="prec-grid"><div><h4>Where they were explained</h4>' +
-      tally(s.explained_by || [], false) + '</div>' +
-      '<div><h4>Where a finding was raised</h4>' + tally(s.caused_by || [], true) + '</div></div>' +
-    '<h4>What actually closed them</h4>' +
-    '<p class="detail-note" style="margin-top:0">Ranked by how often an item was the evidence ' +
-      'that settled the case — not by how often it was asked for.</p>' +
-    '<div class="tablescroll"><table class="inv-table"><thead><tr><th>Evidence</th>' +
-      '<th style="text-align:right">Requested in</th><th style="text-align:right">Decisive in</th>' +
-      '<th style="width:110px">Hit rate</th></tr></thead><tbody>' +
-      (s.evidence || []).map((e) => '<tr><td>' + esc(e.label) + '</td>' +
-        '<td class="mono" style="text-align:right">' + e.requested + '</td>' +
-        '<td class="mono" style="text-align:right">' + e.decisive + '</td>' +
-        '<td><span class="meter"><i style="width:' + e.decisive_rate + '%"></i></span>' +
-        '<span class="sub"> ' + pct(e.decisive_rate) + '</span></td></tr>').join("") +
-      '</tbody></table></div>' +
-    '<div class="prec-facts">' +
-      (s.effort && s.effort.median_rounds != null ? '<div><span class="k">Typical effort</span>' +
-        '<span class="v">' + s.effort.median_rounds + ' rounds · ' +
-        s.effort.median_days_to_close + ' days</span></div>' : "") +
-      (s.effort && s.effort.single_round_pct != null ?
-        '<div><span class="k">Closed in one round</span><span class="v">' +
-        pct(s.effort.single_round_pct) + '</span></div>' : "") +
-      (s.assessed && s.assessed.median != null ?
-        '<div><span class="k">Median assessment</span><span class="v">' +
-        money(s.assessed.median) + '</span></div>' : "") +
-    '</div>' +
-    (s.recurrence ? '<div class="callout warn"><b>This taxpayer is in the comparable set.</b> ' +
-      (s.recurrence.findings > 0
-        ? s.recurrence.cases + ' closed case(s), ' + s.recurrence.findings + ' with a finding (' +
-          s.recurrence.root_causes.join(", ") + ') — ' + s.recurrence.case_ids.join(", ") +
-          '. Rule the earlier cause out first.'
-        : s.recurrence.cases + ' closed case(s), none of which resulted in a finding.') +
-      '</div>' : "") +
+    '<div class="who-block">' +
+    '<h4>Related parties <span class="pill status">dummy data</span></h4>' +
+    '<div class="tablescroll"><table class="inv-table"><thead><tr><th>Party</th>' +
+    '<th>VAT number</th><th>Relationship</th></tr></thead><tbody>' +
+    ((tp.related_parties || []).length
+      ? tp.related_parties.map((rp) => '<tr><td>' + esc(rp.name) + '</td><td class="mono">' +
+          esc(rp.vat_no) + '</td><td>' + esc(rp.relation) + '</td></tr>').join("")
+      : '<tr><td>Al-Faisaliah Logistics Co.</td><td class="mono">300012345600011</td>' +
+        '<td>Common ownership</td></tr>' +
+        '<tr><td>Faisaliah Retail Est.</td><td class="mono">300012345600029</td>' +
+        '<td>Same group</td></tr>') +
+    '</tbody></table></div></div>' +
     '</div></div>';
-}
 
-/* ------------------------------------------------------------------ casework */
-const GAP_LABEL = {
-  "missing-item": "Nothing supplied", "wrong-document": "Wrong document",
-  "missing-column": "Missing column", "empty-mandatory-field": "Blank mandatory field",
-  "wrong-period": "Period not covered", "arithmetic-mismatch": "Does not add up",
-  "wrong-format": "Wrong format", "unrequested-document": "Not requested",
-  "too-vague": "Too vague",
-};
-const ITEM_STATUS = { outstanding: "pri-high", received: "pri-medium", satisfied: "pri-low", waived: "" };
-
-function letterPanel(title, draft) {
-  if (!draft || !draft.text) return "";
-  return '<div class="panel ai-panel"><div class="panel-head">' +
-    '<div class="ai-h"><span class="ai-chip">AI</span><h2>' + esc(title) + '</h2></div>' +
-    '<div class="chips">' + verifyBadge(draft.source) + '</div></div>' +
-    '<div class="panel-body"><pre class="letterpre">' + esc(draft.text) + '</pre>' +
-    '<p class="detail-note">A draft for the auditor to edit and approve. Nothing is sent from ' +
-    'here. Every figure in the letter was established by the engine — the model may repeat one ' +
-    'and may not introduce one.</p></div></div>';
-}
-
-function viewCasework(caseId) {
-  const work = (DATA.casework || {})[caseId];
-  if (!work) return '<div class="page"><div class="panel"><div class="notice err">No casework ' +
-    'for ' + esc(caseId) + '.</div></div></div>';
-  const plan = work.plan, loop = work.loop;
-  const started = loop.round > 0;
-
-  const planItems = (list, dropped) => '<div class="planlist">' + list.map((p) =>
-    '<div class="planitem' + (dropped ? " dropped" : "") + '"><div class="pi-head"><b>' +
-    esc(p.label) + '</b>' + (dropped ? "" : '<span class="pill">' + esc(p.kind) + '</span>' +
-      (p.decisive_rate != null ? '<span class="pill pri-low">' + p.decisive_rate +
-        '% decisive</span>' : "")) + '</div><p class="sub">' + esc(p.reason) + '</p>' +
-    (!dropped && (p.required_columns || []).length ? '<p class="cols"><span class="k">' +
-      p.required_columns.length + ' columns</span>' +
-      p.required_columns.map((x) => '<code>' + esc(x) + '</code>').join("") + '</p>' : "") +
-    '</div>').join("") + '</div>';
-
-  const gapsFor = (gaps) => {
-    if (!gaps.length) return '<p class="muted">Nothing outstanding — the response meets the ' +
-      'request.</p>';
-    const groups = {};
-    const order = [];
-    gaps.forEach((g) => {
-      const k = g.item_label || "Other";
-      if (!groups[k]) { groups[k] = []; order.push(k); }
-      groups[k].push(g);
-    });
-    return '<div class="gaps">' + order.map((k) => '<div class="gapgroup"><h4>' + esc(k) +
-      '</h4>' + groups[k].map((g) => '<div class="gap ' + g.severity + '">' +
-        '<span class="pill ' + (g.severity === "blocking" ? "pri-high" : "pri-medium") + '">' +
-        esc(GAP_LABEL[g.kind] || g.kind) + '</span><div><p>' + esc(g.detail) + '</p>' +
-        (g.citation ? '<small class="mono">' + esc(g.citation) + '</small>' : "") +
-        '</div></div>').join("") + '</div>').join("") + '</div>';
-  };
-
-  const rounds = (loop.rounds || []).map((r) => {
-    const docs = (loop.documents || []).filter((x) => x.round === r.seq);
-    return '<div class="panel"><div class="panel-head"><h2>Round ' + r.seq + '</h2>' +
-      '<div class="chips"><span class="pill ' +
-        (r.status === "satisfied" ? "pri-low" : "pri-medium") + '">' + esc(r.status) + '</span>' +
-        (r.issued_at ? '<span class="sub">issued ' + esc(r.issued_at) + '</span>' : "") +
-        (r.answered_at ? '<span class="sub">answered ' + esc(r.answered_at) + '</span>' : "") +
-      '</div></div><div class="panel-body">' +
-      '<div class="tablescroll"><table class="inv-table"><thead><tr><th style="width:34px">#</th>' +
-        '<th>Requested</th><th>Format</th><th>Status</th></tr></thead><tbody>' +
-        r.items.map((it) => '<tr><td class="mono">' + it.seq + '</td><td><b>' + esc(it.label) +
-          '</b>' + ((it.required_columns || []).length ? '<div class="sub">' +
-            it.required_columns.length + ' columns: ' + it.required_columns.map(esc).join(", ") +
-            '</div>' : "") + '</td><td class="mono">' + esc(it.expected_format || "—") + '</td>' +
-          '<td><span class="pill ' + (ITEM_STATUS[it.status] || "") + '">' + esc(it.status) +
-          '</span></td></tr>').join("") + '</tbody></table></div>' +
-      '<h4>What arrived</h4>' +
-      (docs.length ? '<div class="tablescroll"><table class="inv-table"><thead><tr><th>File</th>' +
-        '<th>Answers</th><th style="text-align:right">Rows</th><th>Columns found</th>' +
-        '<th>Covers</th></tr></thead><tbody>' + docs.map((x) => {
-          const it = r.items.find((i) => i.id === x.request_item_id);
-          return '<tr' + (x.superseded ? ' class="dim"' : "") + '><td class="mono">' +
-            esc(x.filename) + (x.superseded ? ' <span class="sub">· superseded</span>' : "") +
-            '</td><td class="sub">' + esc(it ? it.label : "not linked") + '</td>' +
-            '<td class="mono" style="text-align:right">' + (x.row_count || "—") + '</td>' +
-            '<td class="sub">' + esc((x.raw_headers || []).join(", ") || x.note || "—") + '</td>' +
-            '<td class="mono sub">' + (x.period_from ? esc(x.period_from) + " → " +
-              esc(x.period_to) : "—") + '</td></tr>';
-        }).join("") + '</tbody></table></div>'
-        : '<p class="muted">Nothing received for this round yet.</p>') +
-      '<h4>Requested versus received' + (r.gaps.length ? ' <span class="sub">· ' + r.gaps.length +
-        ' findings</span>' : "") + '</h4>' + gapsFor(r.gaps) +
-      '<p class="detail-note">Column presence, blank mandatory fields, period coverage and ' +
-      'whether the stated totals add up are checks, not judgement — they run deterministically, ' +
-      'with no model involved. A column the taxpayer named differently is resolved, not ' +
-      'reported: flagging “Invoice No.” as missing would put a false accusation in the letter ' +
-      'below.</p></div></div>';
-  }).join("");
-
-  const last = (loop.rounds || [])[loop.rounds.length - 1];
-  return '<div class="page">' +
-    '<header class="page-head"><div><h1>Casework</h1><p class="sub">' + esc(caseId) +
-      ' · what we asked for, what arrived, and what is still missing</p></div>' +
-      (started ? '<div class="chips"><span class="pill ' +
-        (loop.complete ? "pri-low" : "pri-high") + '">Round ' + loop.round + '</span>' +
-        '<span class="pill">' + esc(loop.status) + '</span>' +
-        (loop.complete ? "" : '<span class="pill pri-high">' + loop.blocking +
-          ' blocking</span>') + '</div>' : "") +
-    '</header>' + caseTabs(caseId, "casework") + lifecycleRail(caseId) +
-
-    '<div class="panel"><div class="panel-head">' +
-      '<div class="ai-h"><span class="chip-det">Deterministic</span><h2>What to ask for</h2></div>' +
-      '<span class="sub">' + plan.items.length + ' items · ' + plan.dropped.length +
-      ' dropped</span></div><div class="panel-body">' +
-      (plan.notes || []).map((n) => '<p class="detail-note">' + esc(n) + '</p>').join("") +
-      '<h4>Requesting</h4>' + planItems(plan.items, false) +
-      (plan.dropped.length ? '<h4>Not requesting</h4>' + planItems(plan.dropped, true) +
-        '<p class="detail-note">The auditors do not request information the Authority already ' +
-        'holds. Here that is mechanical rather than remembered — and the reason stays visible, ' +
-        'so the decision can be checked rather than trusted.</p>' : "") +
-      (started ? "" : '<p class="detail-note">No request has been issued on this case. In the ' +
-        'live app the auditor approves this plan and the letter is drafted from it.</p>') +
-    '</div></div>' + rounds +
-    (last && last.body ? letterPanel("Round " + last.seq + " — information request",
-      { text: last.body, source: last.body_source }) : "") +
-    (work.followup ? letterPanel("Follow-up — outstanding items only", work.followup) : "") +
-    (loop.complete && started ? '<div class="callout ok"><b>The response meets the request.</b> ' +
-      'Nothing blocking remains, so the substantive review can open.</div>' : "") +
-  '</div>';
-}
-
-
-function viewReconciliation(caseId) {
-  let d;
-  try { d = reconcileCase(caseId); }
-  catch (e) {
-    return '<div class="page"><div class="panel"><div class="notice err">Could not reconcile this case — ' + esc(e.message) + '</div></div></div>';
-  }
-  const cstate = (d.combined && d.combined.state) || d.state;
-  const inputFinding = d.combined && d.combined.input_state === "potential-finding";
-  const brief = fbSummary(caseId);
-  const narration = fbNarration(d);
-  const nba = fbNba(d);
-  const report = fbReport(d);
-  const responses = responsesOf(caseId);
-
-  const reportLines = report.split("\n");
-  const shownText = reportLines.slice(0, reportShown).join("\n");
-  const streaming = reportShown < reportLines.length;
-
-  return '<div class="page">' +
-    '<div class="page-head"><div><p class="eyebrow"><a href="#/">Cases</a> · ' + esc(d.case_id) + '</p>' +
-    '<h1>' + esc(d.taxpayer) + '</h1></div>' +
-    '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">' +
-    (inputFinding ? '<span class="pill pri-high" style="font-size:12px;padding:5px 12px" title="Input-VAT over-claim on the purchases box">+ input over-claim ' + esc(sar(d.combined.input_unexplained)) + '</span>' : "") +
-    '<span class="pill ' + (STATE_CLASS[cstate] || "status") + '" style="font-size:13px;padding:6px 14px">' +
-    esc(STATE_LABEL[cstate] || cstate) + '</span></div></div>' +
-
-    caseTabs(caseId, "reconciliation") + lifecycleRail(caseId) +
-
-    // taxpayer brief
-    '<div class="panel ai-panel"><div class="panel-head"><div class="ai-h"><span class="ai-chip">AI</span><h2>Taxpayer brief</h2></div>' +
-    verifyBadge("deterministic-fallback") + '</div><div class="ai-body">' +
-    '<p class="brief-head">' + esc(brief.headline) + '</p>' +
-    '<ul class="brief-points">' + brief.points.map((p) => "<li>" + esc(p) + "</li>").join("") + '</ul>' +
-    (brief.risk_flags.length ? '<div class="chips">' + brief.risk_flags.map((f) => '<span class="pill pri-medium">' + esc(f) + '</span>').join("") + '</div>' : "") +
-    '<p class="detail-note" style="margin:10px 0 0">' + esc(brief.prior_pattern) + '</p></div></div>' +
-
-    // tiles
-    '<div class="tiles">' +
-    '<div class="tile"><div class="tn">' + d.counted_lines + '</div><div class="tl">Documents that qualify</div><div class="tnote">of ' + d.population_lines + ' on file</div></div>' +
-    '<div class="tile"><div class="tn">' + esc(sar(d.expected_vat)) + '</div><div class="tl">Expected output VAT</div><div class="tnote">what qualifies, summed</div></div>' +
-    '<div class="tile"><div class="tn">' + esc(sar(d.declared)) + '</div><div class="tl">Declared output VAT</div><div class="tnote">as filed</div></div>' +
-    '<div class="tile"><div class="tn" style="color:' + (d.unexplained !== 0 ? "var(--high)" : "var(--low)") + '">' + (d.unexplained < 0 ? "−" : "") + esc(sar(d.unexplained)) + '</div><div class="tl">' + (d.evidence_total ? "Still unexplained" : "Difference") + '</div><div class="tnote">' + esc(d.band) + '</div></div>' +
-    '</div>' +
-
-    // narration
-    '<div class="panel ai-panel"><div class="panel-head"><div class="ai-h"><span class="ai-chip">AI</span><h2>What qualifies, and how it compares</h2></div>' +
-    verifyBadge("deterministic-fallback") + '</div><div class="ai-body">' + esc(narration) + '</div></div>' +
-
-    // output bridge
-    '<div class="panel"><div class="panel-head"><h2>Which documents belong in ' + esc(d.box) + '</h2>' +
-    '<button class="linklike" data-drill="output|all-invoices">' + d.invoices_considered + ' e-invoices on file ›</button></div>' +
-    provenanceView(d) + funnelView(d, "output") + compareView(d, "output") + evidenceView(d, "output") +
-    '<div class="panel-note"><span class="ct">∑ computed</span> The rules decide which documents belong in this box and this period; the qualifying ones are then summed. Nothing is totalled and later adjusted, so there is no figure here &ldquo;before&rdquo; the rules. Click any line for the documents behind it.</div></div>' +
-
-    // input bridge
-    '<div class="panel"><div class="panel-head"><h2>Which documents belong in standard-rated purchases</h2>' +
-    '<span class="pill ' + (STATE_CLASS[d.purchase.state] || "status") + '" style="font-size:12px;padding:5px 12px">' +
-    esc(STATE_LABEL[d.purchase.state] || d.purchase.state) + '</span></div>' +
-    funnelView(d.purchase, "input") + compareView(d.purchase, "input") + evidenceView(d.purchase, "input") +
-    '<div class="panel-note"><span class="ct">∑ computed</span> The same order on the purchases side. Here an over-claim — declaring more input VAT than the qualifying invoices support — is the revenue risk, so a negative difference is the one to look at.</div></div>' +
-
-    // investigation
-    investigationPanel(d.case_id) +
-
-    // next best action
-    '<div class="panel ai-panel"><div class="panel-head"><div class="ai-h"><span class="ai-chip">AI</span><h2>Next best action</h2></div>' +
-    verifyBadge("deterministic-fallback") + '</div><div class="ai-body">' +
-    (nba.action_type === "no-action"
-      ? '<p class="muted">No action — the difference is within materiality. ' + esc(nba.rationale) + '</p>'
-      : '<div class="nba-top"><span class="pill pri-high">' + esc(nba.action_type.replace(/-/g, " ")) + '</span>' +
-        '<span class="muted">to ' + esc(nba.addressed_to.replace(/-/g, " ")) + '</span>' +
-        (nba.minimises_contact ? '<span class="pill pri-low">minimises contact</span>' : "") + '</div>' +
-        kv([["Request", esc(nba.document_requested)], ["Expected outcome", esc(nba.expected_yield)]]) +
-        '<p class="detail-note" style="margin-bottom:0">' + esc(nba.rationale) + '</p>') +
-    '</div></div>' +
-
-    // taxpayer response
-    '<div class="panel"><div class="panel-head"><h2>Taxpayer response</h2>' +
-    '<span class="muted">record what the taxpayer supplied — the auditor confirms the amount, the AI only describes it</span></div>' +
-    '<div class="ai-body"><div class="letter">' +
-    '<div class="letter-head"><span class="ai-chip">AI</span>' +
-    '<span class="muted">Paste a taxpayer letter or case note — AI drafts a response for you to confirm</span></div>' +
-    '<textarea class="letter-input" id="letter" rows="4" placeholder="Paste the taxpayer&#39;s letter or a case note here…">' + esc(letterText) + '</textarea>' +
-    '<div class="resp-actions"><button class="btn" data-act="analyse"' + (letterText.trim() ? "" : " disabled") + '>Analyse with AI</button>' +
-    '<button class="linklike" data-act="sample-letter">use sample letter</button></div>' +
-    (extraction ? extractionCard(extraction) : "") +
-    '<div class="resp-divider"><span>then confirm &amp; record</span></div></div>' +
-    (responses.length
-      ? '<div class="resp-list">' + responses.map((r) =>
-          '<div class="resp-item"><div><span class="rc">' + esc(r.code) + '</span> ' + esc(r.label) +
-          (r.doc_name ? '<span class="sub"> · ' + esc(r.doc_name) + '</span>' : "") + '</div>' +
-          '<div class="resp-amt">−' + esc(sar(r.amount)) + '<button class="linklike" data-remove="' + r.seq + '">remove</button></div></div>').join("") +
-        '</div>'
+  // ---- audit history, at the level an auditor actually wants it
+  const historyLine = h.closed_cases
+    ? h.closed_cases + " prior case" + (h.closed_cases === 1 ? "" : "s") + ", " +
+      (h.findings >= h.closed_cases && h.closed_cases
+        ? "every one resolved in the Authority's favour"
+        : h.findings + " resolved in the Authority's favour")
+    : "No prior audits on record for this taxpayer.";
+  const history = '<div class="panel"><div class="panel-head"><h2>Audit history</h2>' +
+    '<span class="pill ' + (h.closed_cases ? "pri-medium" : "status") + '">' +
+    (h.closed_cases ? "Audited before" : "First audit") + '</span></div>' +
+    '<div class="ai-body"><p class="inv-conc" style="margin-bottom:10px">' + esc(historyLine) + '</p>' +
+    (h.root_causes && h.root_causes.length
+      ? '<p class="detail-note" style="margin:0">Previously found: ' +
+        h.root_causes.map((x) => '<span class="rc">' + esc(x) + '</span>').join(" ") +
+        '. Worth checking whether the same cause applies again.</p>'
       : "") +
-    '<div class="resp-form">' +
-    '<input id="resp-label" placeholder="What the taxpayer provided (e.g. sales ledger showing the difference was already declared)" value="' + esc(respLabel) + '" />' +
-    '<div class="resp-row"><input id="resp-amount" type="number" placeholder="Amount it accounts for (SAR)" value="' + esc(respAmount) + '" />' +
-    '<input id="resp-doc" placeholder="Document name (optional)" value="' + esc(respDoc) + '" /></div>' +
-    '<div class="resp-actions"><button class="btn" data-act="record"' + (respLabel.trim() && respAmount ? "" : " disabled") + '>Record response &amp; regenerate</button>' +
-    '<button class="linklike" data-act="sample-resp">use sample</button></div>' +
-    '</div></div></div>' +
+    '</div></div>';
 
-    // draft report
-    '<div class="panel ai-panel"><div class="panel-head"><div class="ai-h"><span class="ai-chip">AI</span><h2>Draft audit report</h2></div>' +
-    '<span id="report-badge">' + verifyBadge(streaming ? null : "deterministic-fallback") + '</span></div>' +
-    '<div class="ai-body md" id="report-body">' + (shownText ? renderMd(shownText) : '<span class="muted">Drafting…</span>') +
-    (streaming ? '<span class="cursor">▍</span>' : "") + '</div></div>' +
+  // ---- imports and exports, kept to the one line that matters
+  const trade = '<div class="panel"><div class="panel-head"><h2>Imports and exports</h2>' +
+    '<span class="pill status">From the registration</span></div>' +
+    '<div class="ai-body"><p class="inv-conc" style="margin:0">' +
+    esc((tp.importer ? "Registered as an importer" : "Not registered as an importer") + " &middot; " +
+        (tp.exporter ? "registered as an exporter" : "not registered as an exporter") + ".")
+      .replace(/&amp;middot;/g, "&middot;") +
+    '</p></div></div>';
 
+  return '<div class="page">' + caseHeader(caseId) + caseTabs(caseId, "dossier") +
+    lifecycleRail(caseId) +
+    who + history + trade +
+    soonCard("Why this case was raised",
+      "The risk engine's referral \u2014 the indicator that fired, its score and the signals " +
+      "behind it. Not available to the proof-of-concept yet.") +
+    soonCard("What ZATCA already holds",
+      "Returns on file, cleared e-invoices, customs declarations and financial statements, " +
+      "assembled in one place so nothing is requested that the Authority already has.") +
+    soonCard("Invoicing in the period",
+      "The cleared FATOORA e-invoices for this taxpayer and period, to set against whatever " +
+      "the taxpayer sends.") +
+    soonCard("Similar past cases",
+      "What comparable closed cases turned out to be, and which evidence actually closed them.") +
     '</div>';
 }
 
-function investigationPanel(caseId) {
-  const inv = investigate(caseId);
-  const byId = Object.fromEntries(inv.hypotheses.map((h) => [h.id, h]));
-  const adj = Object.fromEntries(inv.adjudications.map((a) => [a.hypothesis_id, a]));
-  const pill = { confirmed: "pri-low", refuted: "status", "insufficient-evidence": "pri-medium" };
-
-  const rows = inv.hypotheses.map((h) => {
-    const a = adj[h.id] || {};
-    const lead = inv.leading === h.id;
-    return '<div class="hyp' + (lead ? " lead" : "") + '">' +
-      '<div><div class="hid">' + esc(h.id) + '</div>' +
-      (h.reason_code ? '<span class="rc">' + esc(h.reason_code) + '</span>' : "") + '</div>' +
-      '<div><div class="agent">' + esc(h.agent) + (lead ? " · leading" : "") + '</div>' +
-      esc(h.claim) +
-      // the trigger. Without it the claim is an assertion; with it, an inference the
-      // auditor can check — and a finding they can defend to a taxpayer.
-      (h.why ? '<div class="hyp-why"><b>Why raised</b> ' + esc(h.why) + '</div>' : "") +
-      (a.explanation
-        ? '<div class="verdict verdict-' + esc(a.status) + '"><b>' +
-          esc({ confirmed: "confirmed", refuted: "refuted",
-                "insufficient-evidence": "cannot be tested" }[a.status] || a.status) +
-          '</b> — ' + esc(a.explanation) + '</div>'
-        : "") +
-      '<div class="hyp-test"><div><span class="k">Test run</span><code>' + esc(h.test.kind) +
-      '</code><span class="sub"> on the ' + esc(h.test.box) + ' box</span></div>' +
-      (Object.keys(h.test.params || {}).length
-        ? '<div><span class="k">Against</span><code>' +
-          esc(Object.entries(h.test.params).map(([k2, v]) => k2 + "=" + v).join(", ")) + '</code></div>'
-        : "") +
-      '<div><span class="k">Confidence when proposed</span>' + esc(h.confidence) + '</div>' +
-      (h.outcome_code ? '<div><span class="k">Reports as</span><code>' + esc(h.outcome_code) + '</code></div>' : "") +
-      '</div></div>' +
-      '<div style="text-align:right"><span class="pill ' + (pill[a.status] || "status") + '">' +
-      esc((a.status || "").replace(/-/g, " ")) + '</span>' +
-      (a.amount ? '<div class="amt2">' + esc(sar(a.amount)) + '</div>' : "") + '</div></div>';
-  }).join("");
-
-  const objection = inv.entries.find((e) => e.kind === "objection");
-  return '<div class="panel ai-panel"><div class="panel-head">' +
-    '<div class="ai-h"><span class="ai-chip">AGENTS</span><h2>Investigation</h2></div>' +
-    '<span class="pill status" title="Agents propose typed tests; a deterministic adjudicator settles them. No model states a figure.">∑ Adjudicated (no AI)</span></div>' +
-    '<div class="ai-body">' +
-    '<p class="inv-conc">' + esc(inv.conclusion) + '</p>' +
-    (inv.hypotheses.length
-      ? '<div class="inv-round">Round 1–2 · ' + inv.hypotheses.length +
-        ' hypotheses proposed, each settled against the engine</div>' + rows +
-        (objection ? '<div class="inv-round">Round 3 · Challenger</div>' +
-          '<p class="detail-note" style="margin:0">' + esc(objection.payload.note) + '</p>' : "")
-      : "") +
-    '</div></div>' +
-    findingsPanel(inv) +
-    calculationsPanel(caseId) +
-
-    // §8's second administrative burden: the letter telling the taxpayer the outcome
-    letterPanel("Draft letter to the taxpayer", ((DATA.casework || {})[caseId] || {}).verdict);
+/* A drafted letter, exactly as the engine wrote it. Nothing is sent from here. */
+function letterPanel(title, draft, step) {
+  if (!draft || !draft.text) return "";
+  return '<div class="panel ai-panel' + (step ? " step" : "") + '"><div class="panel-head">' +
+    (step
+      ? '<div class="steph"><span class="stepn">' + step + '</span><h2>' + esc(title) + '</h2></div>'
+      : '<div class="ai-h"><span class="ai-chip">AI</span><h2>' + esc(title) + '</h2></div>') +
+    '<span class="pill status" title="Every figure in the draft was established by the engine ' +
+    'before the model saw it.">&#8721; Engine-drafted</span></div>' +
+    '<div class="panel-body"><pre class="letterpre">' + esc(draft.text) + '</pre>' +
+    '<p class="detail-note">A draft for you to edit and send. Nothing leaves the app.</p>' +
+    '</div></div>';
 }
 
-/* ---- findings: the Authority's own wording, grouped by the evidence they rest on */
+/* The auditor's own working state for this tab. In the app both of these are persisted;
+   in a static file they live for the session, which is enough to walk the flow. */
+const SENT_EMAIL = {};
+const EXTRA_DOCS = {};
+
+const SAMPLE_REQUEST_EMAIL =
+  "Dear Sir/Madam,\n\n" +
+  "Further to our review of your VAT position for Q1 2025, please provide the following " +
+  "within 20 working days:\n\n" +
+  "1. A detailed sales analysis for the period, with the following columns: invoice date, " +
+  "invoice number, customer name, customer VAT number, description, taxable amount, VAT rate " +
+  "and VAT amount.\n" +
+  "2. A detailed purchases analysis on which input VAT was claimed.\n" +
+  "3. The trial balance as at 31 March 2025.\n" +
+  "4. Copies of the tax invoices for the ten largest purchases.\n\n" +
+  "Yours faithfully,\nZakat, Tax and Customs Authority";
+
+function viewCasework(caseId) {
+  const work = (DATA.casework || {})[caseId] || {};
+  const loop = work.loop || { round: 0, rounds: [], documents: [], blocking: 0 };
+  const sent = SENT_EMAIL[caseId];
+
+  // ---- STEP 1: the email that actually went out
+  const emailPanel = '<div class="panel step"><div class="panel-head">' +
+    '<div class="steph"><span class="stepn">1</span><h2>The email you sent the taxpayer</h2></div>' +
+    '<span class="pill ' + (sent ? "pri-low" : "pri-medium") + '">' +
+    (sent ? "Recorded" : "Needed") + '</span></div>' +
+    '<div class="panel-body">' +
+    '<p class="detail-note" style="margin-top:0">Paste it in. It becomes the specification the ' +
+    'response is checked against &mdash; what you asked for is what the agents look for.</p>' +
+    '<textarea class="letter-input" id="req-email" rows="8" placeholder="Paste the request ' +
+    'email you sent&hellip;">' + esc(sent || "") + '</textarea>' +
+    '<div class="row-actions">' +
+    '<button class="btn" data-email="save">' + (sent ? "Update" : "Record this email") + '</button>' +
+    '<button class="linklike" data-email="sample">use a sample</button>' +
+    '</div>' +
+    (sent ? '<div class="callout ok" style="margin-top:12px"><b>Recorded.</b> The response ' +
+      'below is checked against it.</div>' : "") +
+    '</div></div>';
+
+  // ---- STEP 2: the spreadsheets that came back
+  const docs = (loop.documents || []).filter((d) => !d.superseded)
+    .concat(EXTRA_DOCS[caseId] || []);
+  const docRows = docs.map((d) => '<div class="docrow"><b>' + esc(d.filename) + '</b>' +
+    '<span class="sub">' + (d.row_count || (d.rows || []).length) + ' rows &middot; ' +
+    ((d.columns || []).length) + ' columns' +
+    (d.received_at ? ' &middot; received ' + esc(d.received_at) : "") + '</span>' +
+    '<div class="cols">' + (d.columns || []).map((c) => '<span class="ct">' + esc(c) +
+      '</span>').join("") + '</div></div>').join("");
+
+  const uploadPanel = '<div class="panel step"><div class="panel-head">' +
+    '<div class="steph"><span class="stepn">2</span>' +
+    '<h2>The spreadsheets the taxpayer sent back</h2></div>' +
+    '<span class="pill ' + (docs.length ? "pri-low" : "status") + '">' +
+    (docs.length ? docs.length + " on file" : "nothing yet") + '</span></div>' +
+    '<div class="panel-body">' +
+    '<div class="dropzone" data-drop="1"><b>Drop the Excel sheets here</b>' +
+    '<span class="sub">or click to choose &mdash; .xlsx, .csv</span>' +
+    '<span class="sub" style="margin-top:6px">In this standalone build the file is read in ' +
+    'your browser; nothing is uploaded anywhere.</span></div>' +
+    (docRows ? '<div class="doclist">' + docRows + '</div>' : "") +
+    '<p class="detail-note">Each sheet is read into columns and rows on arrival. Everything ' +
+    'after this &mdash; the completeness check, the four agents and your own calculations &mdash; ' +
+    'works from that reading.</p>' +
+    '</div></div>';
+
+  // ---- STEP 3: what is missing from what came back
+  const allGaps = (loop.rounds || []).flatMap((r) => r.gaps || []);
+  const grouped = {};
+  const order = [];
+  allGaps.forEach((g) => {
+    const k = g.item_label || "Other";
+    if (!grouped[k]) { grouped[k] = []; order.push(k); }
+    grouped[k].push(g);
+  });
+
+  const checkPanel = !docs.length ? "" :
+    '<div class="panel step"><div class="panel-head">' +
+    '<div class="steph"><span class="stepn">3</span>' +
+    '<h2>Is it what you asked for?</h2></div>' +
+    '<span class="pill ' + (allGaps.length ? "pri-high" : "pri-low") + '">' +
+    (allGaps.length ? allGaps.length + " to chase" : "nothing outstanding") + '</span></div>' +
+    (allGaps.length
+      ? '<div class="gaps">' + order.map((k) => '<div class="gapgroup"><h4>' + esc(k) + '</h4>' +
+          grouped[k].map((g) => '<div class="gap ' + g.severity + '">' +
+            '<span class="pill ' + (g.severity === "blocking" ? "pri-high" : "pri-medium") + '">' +
+            esc(GAP_LABEL[g.kind] || g.kind) + '</span><div><p>' + esc(g.detail) + '</p>' +
+            (g.citation ? '<small class="mono">' + esc(g.citation) + '</small>' : "") +
+            '</div></div>').join("") + '</div>').join("") + '</div>'
+      : '<div class="panel-note" style="border-top:none">Every column asked for is present, ' +
+        'every mandatory field is populated, the period is covered and the stated totals foot. ' +
+        'The review can open.</div>') +
+    '</div>';
+
+  // ---- STEP 4: the chase, written from the gaps alone
+  const chase = !allGaps.length ? "" :
+    letterPanel("The follow-up email, written from the gaps", work.followup, 4);
+
+  return '<div class="page">' + caseHeader(caseId) + caseTabs(caseId, "casework") +
+    lifecycleRail(caseId) +
+    emailPanel + uploadPanel + checkPanel + chase + '</div>';
+}
+
+/* ================================================== what the agents found, and how
+
+   Two panels, in the order an auditor reads them: the findings first, because that is the
+   answer, then the working, because that is what they have to defend. */
+
 const EFFECT_LABEL = { "increases-output": "Output VAT understated",
   "disallows-input": "Input VAT not recoverable", documentation: "Documentation defect" };
 const EFFECT_PILL = { "increases-output": "pri-high", "disallows-input": "pri-high",
   documentation: "pri-medium" };
+const AGENT_BLURB = {
+  "Regulations": "Tests documents against the conditions the law sets for them.",
+  "Data Entry": "Looks for keying errors before treating a difference as real.",
+  "Calculation": "Totals what the taxpayer sent and sets it against what they declared.",
+  "Evidence & Coverage": "Asks whether there is anything behind what was claimed.",
+};
+const VERDICT_WORD = { confirmed: "confirmed", refuted: "ruled out",
+  "insufficient-evidence": "could not be tested" };
+
+/* ---- module state and helpers the rebuilt views depend on
+   (these lived inside the view blocks that the rescope replaced) */
+
+const GAP_LABEL = {
+  "missing-item": "Nothing supplied",
+  "wrong-document": "Wrong document",
+  "missing-column": "Missing column",
+  "empty-mandatory-field": "Blank mandatory field",
+  "wrong-period": "Period not covered",
+  "arithmetic-mismatch": "Does not add up",
+  "wrong-format": "Wrong format",
+  "unrequested-document": "Not requested",
+  "too-vague": "Too vague",
+};
+
+/* the audit report reveals a line at a time, the way the streamed draft does in the app */
+let reportShown = 0;
+let reportTimer = null;
+let reportGen = 0;
+
+/* Markdown, only as far as the engine's own report actually uses it. */
+function renderMd(text) {
+  const out = [];
+  let bullets = [];
+  const flush = () => {
+    if (bullets.length) {
+      out.push("<ul>" + bullets.map((b) => "<li>" + inlineMd(b) + "</li>").join("") + "</ul>");
+      bullets = [];
+    }
+  };
+  String(text || "").split("\n").forEach((line) => {
+    if (line.startsWith("## ")) { flush(); out.push("<h4>" + esc(line.slice(3)) + "</h4>"); }
+    else if (line.startsWith("### ")) { flush(); out.push("<h4>" + esc(line.slice(4)) + "</h4>"); }
+    else if (line.startsWith("- ")) bullets.push(line.slice(2));
+    else if (!line.trim()) flush();
+    else { flush(); out.push("<p>" + inlineMd(line) + "</p>"); }
+  });
+  flush();
+  return out.join("");
+}
+function inlineMd(line) {
+  return esc(line)
+    .replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>")
+    .replace(/`([^`]+)`/g, "<code>$1</code>");
+}
+
+/* ---- the auditor's own arithmetic, in their own words
+
+   In the app a model turns the sentence into a query. A static file has no model, so the same
+   job is done by keyword matching here. Either way the parse is SHOWN before it is trusted, and
+   the arithmetic is done in code — which is the property that actually matters. */
+
+const OP_CUES = [
+  [/\b(sum|summed|total(?:led|ed)?|added up|add up|adding)\b/i, "sum"],
+  [/\b(distinct|unique|different)\b/i, "count_distinct"],
+  [/\b(how many|count(?:ed)?|number of)\b/i, "count"],
+  [/\b(average|avg|mean)\b/i, "average"],
+  [/\b(largest|highest|max(?:imum)?|biggest)\b/i, "max"],
+  [/\b(smallest|lowest|min(?:imum)?)\b/i, "min"],
+];
+const COLUMN_CUES = [
+  [/\b(vat|tax)\b/i, "vat_amount"],
+  [/\b(taxable|net|base|excluding vat)\b/i, "taxable_amount"],
+  [/\b(customer|client|buyer)\b/i, "customer_name"],
+  [/\b(supplier|vendor|seller)\b/i, "supplier_name"],
+  [/\b(rate)\b/i, "vat_rate"],
+];
+
+/* The figure they say they got, if it is in the sentence. */
+function statedAmountIn(text) {
+  const t = String(text);
+  const m = t.match(/(?:got|is|was|of|=|:|totall?ing)\s*(?:sar\s*)?([\d][\d,]*(?:\.\d+)?)/i)
+    || t.match(/sar\s*([\d][\d,]*(?:\.\d+)?)/i)
+    || t.match(/([\d]{1,3}(?:,[\d]{3})+(?:\.\d+)?)/);
+  return m ? asNumber(m[1]) : null;
+}
+
+function parseMethod(text, docs) {
+  const t = String(text || "");
+  const low = t.toLowerCase();
+  const op = (OP_CUES.find(([re]) => re.test(t)) || [])[1] || "";
+  const doc =
+    docs.find((d) => low.includes((d.filename || "").toLowerCase())) ||
+    docs.find((d) => {
+      const stem = (d.filename || "").split(/[._\-]/)[0].toLowerCase();
+      return stem.length > 3 && low.includes(stem);
+    }) ||
+    (docs.length === 1 ? docs[0] : null);
+  const cols = (doc && doc.columns) || [];
+  let column =
+    cols.find((c) => low.includes(c.replace(/_/g, " "))) ||
+    cols.find((c) => low.includes(c)) || "";
+  if (!column && op !== "count") {
+    for (const [re, name] of COLUMN_CUES) {
+      if (re.test(t) && cols.includes(name)) { column = name; break; }
+    }
+  }
+  const said = op === "count" ? "count the rows"
+    : op ? op.replace("_", " ") + " of " + (column || "?") : "";
+  return { op, column, document: (doc && doc.filename) || "", filters: [],
+           understood: said + (doc ? " in " + doc.filename : "") };
+}
+
+function calculationsPanel(caseId) {
+  const docs = ((((DATA.casework || {})[caseId] || {}).loop || {}).documents || [])
+    .filter((x) => !x.superseded).concat(EXTRA_DOCS[caseId] || []);
+  const head = '<div class="panel"><div class="panel-head"><h2>Check my working</h2>' +
+    '<span class="pill status" title="Recomputed from the rows in the document. No model does ' +
+    'arithmetic.">&#8721; Recomputed from source</span></div>';
+  if (!docs.length)
+    return head + '<div class="panel-note" style="border-top:none">Once the taxpayer&rsquo;s ' +
+      'spreadsheets are on the Casework tab, any figure you work out can be checked against ' +
+      'them.</div></div>';
+
+  const form = '<div class="calc-form">' +
+    '<p class="detail-note" style="margin:0">Say what you did, the way you would say it to a ' +
+    'colleague. It will tell you how it read you before it answers.</p>' +
+    '<textarea class="letter-input" id="calc-text" rows="3" placeholder="I summed the VAT ' +
+    'column on the sales analysis and got 2,618,000 &mdash; can you check it?"></textarea>' +
+    '<button class="btn" data-calc="run">Check it</button></div>';
+
+  const list = calcsFor(caseId).map((c) => '<div class="calc-item">' +
+    '<div class="calc-item-top"><span class="pill ' +
+    ({ agree: "pri-low", disagree: "pri-high", "not-checkable": "pri-medium" }[c.status] || "status") +
+    '">' + esc({ agree: "agrees", disagree: "does not agree",
+                 "not-checkable": "could not check" }[c.status] || c.status) + '</span>' +
+    '<b>' + esc(c.label) + '</b>' +
+    '<button class="linklike" data-calcdel="' + c.seq + '">remove</button></div>' +
+    (c.understood ? '<div class="sub"><span class="k">Read as</span> ' + esc(c.understood) +
+      '</div>' : "") +
+    '<div class="calc-figures">' +
+    (c.stated ? '<span><span class="k">You got</span> ' + esc(sar(c.stated)) + '</span>' : "") +
+    (c.computed !== null && c.computed !== undefined
+      ? '<span><span class="k">Recomputed</span> ' + esc(sar(c.computed)) + '</span>' : "") +
+    (c.delta ? '<span class="calc-delta"><span class="k">Difference</span> ' +
+      esc(sar(c.delta)) + '</span>' : "") +
+    '</div><div class="sub">' + esc(c.explanation) + '</div></div>').join("");
+
+  return head + form + (list ? '<div class="calc-list">' + list + '</div>' : "") +
+    '<div class="panel-note">Recomputed from the rows in the document. If the method cannot be ' +
+    'reproduced it says so, rather than quietly answering a different question.</div></div>';
+}
 
 function findingsPanel(inv) {
   const found = inv.findings || [];
-  const head = '<div class="panel"><div class="panel-head"><h2>Findings</h2>' +
-    '<span class="pill status" title="Wording is the Authority\u2019s own; every amount was computed by the engine.">∑ ' +
-    (found.length ? found.length + " established" : "none established") + '</span></div>';
+  const head = '<div class="panel"><div class="panel-head"><h2>What the agents found</h2>' +
+    '<span class="pill ' + (found.length ? "pri-high" : "pri-low") + '">' +
+    (found.length ? found.length + " to put to the taxpayer" : "nothing to raise") +
+    '</span></div>';
   if (!found.length)
-    return head + '<div class="panel-note"><span class="ct">∑ computed</span> No finding was ' +
-      'established from the documents supplied. Nothing here is a matter to put to the taxpayer.</div></div>';
+    return head + '<div class="panel-note" style="border-top:none">Nothing was established ' +
+      'from the documents supplied. There is no matter here to put to the taxpayer.</div></div>';
 
   const e = inv.exposure || exposureOf(found);
   const tiles = '<div class="exposure">' +
-    '<div class="exp"><span class="exp-l">Output VAT understated</span><b>' + esc(sar(e.increases_output)) + '</b></div>' +
-    '<div class="exp"><span class="exp-l">Input VAT not recoverable</span><b>' + esc(sar(e.disallows_input)) + '</b></div>' +
-    '<div class="exp total"><span class="exp-l">Proposed adjustment</span><b>' + esc(sar(e.total)) + '</b></div>' +
-    (e.documentation_at_risk
-      ? '<div class="exp"><span class="exp-l" title="Documentation defects on evidence that is not already producing an adjustment. Not part of the proposed adjustment.">Documentation at risk</span><b class="muted">' +
-        esc(sar(e.documentation_at_risk)) + '</b></div>' : "") + '</div>';
+    '<div class="exp"><span class="exp-l">Output VAT understated</span><b>' +
+      esc(sar(e.increases_output)) + '</b></div>' +
+    '<div class="exp"><span class="exp-l">Input VAT not recoverable</span><b>' +
+      esc(sar(e.disallows_input)) + '</b></div>' +
+    '<div class="exp total"><span class="exp-l">Proposed adjustment</span><b>' +
+      esc(sar(e.total)) + '</b></div></div>';
 
   const body = groupedByBasis(found).map((g) => {
     const [h, ...rest] = g.findings;
     return '<div class="finding">' +
       '<div class="f-top"><span class="pill ' + (EFFECT_PILL[h.effect] || "status") + '">' +
-      esc(EFFECT_LABEL[h.effect] || h.effect) + '</span><span class="rc">' + esc(h.code) + '</span>' +
+      esc(EFFECT_LABEL[h.effect] || h.effect) + '</span>' +
       (h.amount ? '<b class="f-amt">' + esc(sar(h.amount)) + '</b>' : "") + '</div>' +
       '<div class="f-statement">' + esc(h.statement) + '</div>' +
-      '<div class="f-why"><span class="k">Established because</span> ' + esc(h.explanation) + '</div>' +
+      '<div class="f-why"><span class="k">How we know</span> ' + esc(h.explanation) + '</div>' +
       (rest.length
-        ? '<div class="f-also"><span class="k">The same matter also reads as</span><ul>' +
-          rest.map((r) => '<li><span class="rc">' + esc(r.code) + '</span> ' + esc(r.statement) + '</li>').join("") +
-          '</ul></div>' : "") +
-      '<div class="f-agent">Raised by ' + esc(h.agent) + ' · ' + esc(h.hypothesis_id) + '</div></div>';
+        ? '<div class="f-also"><span class="k">The same evidence also supports</span><ul>' +
+          rest.map((r) => '<li>' + esc(r.statement) + '</li>').join("") + '</ul>' +
+          '<p class="sub" style="margin:6px 0 0">One matter, one amount &mdash; stated once so ' +
+          'it is not assessed twice.</p></div>'
+        : "") +
+      '<div class="f-agent">Found by the ' + esc(h.agent) + ' agent</div></div>';
   }).join("");
 
   return head + tiles + '<div class="findings">' + body + '</div>' +
-    '<div class="panel-note"><span class="ct">∑ computed</span> Each statement is the ' +
-    'Authority\u2019s own wording, selected by an agent and confirmed by a deterministic test. ' +
-    'Where several statements describe one piece of evidence the amount is shown once — they ' +
-    'are readings of a single matter, not separate amounts.</div></div>';
+    '<div class="panel-note">Each sentence is the Authority&rsquo;s own wording. Every amount ' +
+    'was computed by the engine, never written by a model.</div></div>';
 }
 
-/* ---- the auditor's own arithmetic, recomputed in the browser */
-function calculationsPanel(caseId) {
-  const docs = documentsFor(caseId);
-  const head = '<div class="panel"><div class="panel-head"><h2>Your calculations</h2>' +
-    '<span class="pill status" title="Recomputed from the uploaded rows. No model does arithmetic.">∑ Recomputed from source</span></div>';
-  if (!docs.length)
-    return head + '<div class="panel-note"><span class="ct">∑ computed</span> No documents are ' +
-      'on this case, so there is nothing to check a figure against.</div></div>';
+function investigationPanel(caseId) {
+  const inv = investigate(caseId);
+  const adj = Object.fromEntries(inv.adjudications.map((a) => [a.hypothesis_id, a]));
+  const pill = { confirmed: "pri-high", refuted: "pri-low",
+                 "insufficient-evidence": "pri-medium" };
 
-  const doc = docs[0];
-  const cols = (doc.columns || []).filter((c) => c !== "invoice_number");
-  const form = '<div class="calc-form">' +
-    '<input class="letter-input" id="calc-label" placeholder="What did you calculate? (e.g. total output VAT on the listing)">' +
-    '<div class="calc-row">' +
-    '<input class="letter-input" id="calc-amount" type="number" placeholder="The figure you got (SAR)">' +
-    '<select class="letter-input calc-select" id="calc-doc">' +
-    docs.map((d) => '<option value="' + esc(d.filename) + '">' + esc(d.filename) + ' (' + d.row_count + ' rows)</option>').join("") +
-    '</select></div>' +
-    '<div class="calc-query">' +
-    '<select class="letter-input calc-select" id="calc-op">' +
-    ["sum", "count", "count_distinct", "average", "max", "min"].map((o) =>
-      '<option value="' + o + '">' + (o === "count" ? "count rows" : o.replace("_", " ")) + '</option>').join("") +
-    '</select>' +
-    '<select class="letter-input calc-select" id="calc-col">' +
-    '<option value="">of which column?</option>' +
-    cols.map((c) => '<option value="' + esc(c) + '"' + (c === "vat_amount" ? " selected" : "") + '>' + esc(c) + '</option>').join("") +
-    '</select></div>' +
-    '<button class="btn" data-calc="run">Check it against the documents</button></div>';
+  // Grouped by agent: fourteen rows in a flat list is unreadable, four agents is not.
+  // The four named agents lead; the two checks that predate them follow, so the roster the
+  // audit team agreed is what the eye lands on first.
+  const ORDER = ["Regulations", "Data Entry", "Calculation", "Evidence & Coverage"];
+  const byAgent = [];
+  inv.hypotheses.forEach((h) => {
+    let g = byAgent.find((x) => x.agent === h.agent);
+    if (!g) { g = { agent: h.agent, items: [] }; byAgent.push(g); }
+    g.items.push(h);
+  });
+  byAgent.sort((a, b) => {
+    const ia = ORDER.indexOf(a.agent), ib = ORDER.indexOf(b.agent);
+    return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
+  });
+  const namedCount = byAgent.filter((g) => ORDER.includes(g.agent)).length;
 
-  const list = calcsFor(caseId).map((c) => '<div class="calc-item">' +
-    '<div class="calc-item-top"><span class="pill ' +
-    ({ agree: "pri-low", disagree: "pri-high", "not-checkable": "pri-medium" }[c.status] || "status") +
-    '">' + esc(c.status.replace(/-/g, " ")) + '</span><b>' + esc(c.label) + '</b>' +
-    '<button class="linklike" data-calcdel="' + c.seq + '">remove</button></div>' +
-    '<div class="calc-figures"><span><span class="k">You recorded</span> ' + esc(sar(c.stated)) + '</span>' +
-    (c.computed !== null && c.computed !== undefined ? '<span><span class="k">Recomputed</span> ' + esc(sar(c.computed)) + '</span>' : "") +
-    (c.delta ? '<span class="calc-delta"><span class="k">Difference</span> ' + esc(sar(c.delta)) + '</span>' : "") +
-    '</div><div class="sub">' + esc(c.explanation) + '</div>' +
-    (c.query ? '<div class="sub"><span class="k">Checked</span> <code>' + esc(c.query) + '</code></div>' : "") +
-    '</div>').join("");
+  const groups = byAgent.map((g, gi) => {
+    const verdicts = g.items.map((h) => (adj[h.id] || {}).status);
+    const nConf = verdicts.filter((v) => v === "confirmed").length;
+    const lead = gi === namedCount && namedCount < byAgent.length
+      ? '<p class="detail-note" style="margin:18px 0 10px">Other checks the engine runs ' +
+        'alongside the four agents.</p>' : "";
+    return lead + '<div class="agentgroup">' +
+      '<div class="ag-head"><h4>' + esc(g.agent) + '</h4>' +
+      '<span class="sub">' + esc(AGENT_BLURB[g.agent] || "") + '</span>' +
+      '<span class="pill ' + (nConf ? "pri-high" : "pri-low") + '">' +
+      (nConf ? nConf + " of " + g.items.length + " confirmed"
+             : "nothing found in " + g.items.length + " check" + (g.items.length === 1 ? "" : "s")) +
+      '</span></div>' +
+      g.items.map((h) => {
+        const a = adj[h.id] || {};
+        return '<div class="checkrow">' +
+          '<div class="cr-verdict"><span class="pill ' + (pill[a.status] || "status") + '">' +
+          esc(VERDICT_WORD[a.status] || a.status || "") + '</span>' +
+          (a.amount ? '<div class="amt2">' + esc(sar(a.amount)) + '</div>' : "") + '</div>' +
+          '<div class="cr-body">' +
+          '<div class="cr-claim">' + esc(h.claim) + '</div>' +
+          (h.why ? '<div class="cr-line"><span class="k">Why we looked</span>' + esc(h.why) +
+            '</div>' : "") +
+          (a.explanation ? '<div class="cr-line"><span class="k">What we found</span>' +
+            esc(a.explanation) + '</div>' : "") +
+          '</div></div>';
+      }).join("") + '</div>';
+  }).join("");
 
-  return head + form + (list ? '<div class="calc-list">' + list + '</div>' : "") +
-    '<div class="panel-note"><span class="ct">∑ computed</span> Every figure here is recomputed ' +
-    'from the uploaded rows in JavaScript, the same way the app recomputes them in Python. A ' +
-    'method that cannot be reproduced is reported as such rather than approximated by a ' +
-    'calculation answering a different question.</div></div>';
+  return findingsPanel(inv) +
+    '<div class="panel"><div class="panel-head"><h2>How the agents got there</h2>' +
+    '<span class="pill status" title="Agents propose; a deterministic check settles each one. ' +
+    'No model states a figure.">&#8721; ' + inv.hypotheses.length + ' checks run</span></div>' +
+    '<div class="ai-body"><p class="inv-conc">' + esc(inv.conclusion) + '</p>' +
+    groups +
+    '<p class="detail-note" style="margin:14px 0 0">Every line above says what the agent saw, ' +
+    'what it therefore tested, and what the engine concluded &mdash; so a finding can be ' +
+    'defended to the taxpayer rather than asserted.</p>' +
+    '</div></div>';
 }
 
-function extractionCard(x) {
-  return '<div class="extract-card">' +
-    '<div class="extract-top"><span class="pill ' + (x.explains_gap ? "pri-low" : "pri-medium") + '">' +
-    esc(x.category.replace(/-/g, " ")) + '</span>' +
-    '<span class="muted">confidence: ' + esc(x.confidence) + '</span>' +
-    (x.source !== "claude" ? '<span class="muted">· ' + esc(x.source) + '</span>' : "") + '</div>' +
-    '<p class="extract-summary">' + esc(x.summary) + '</p>' +
-    (x.quote ? '<blockquote class="extract-quote">“' + esc(x.quote) + '”</blockquote>' : "") +
-    kv([["Proposed amount (stated in the letter)", "<b>" + esc(sar(x.proposed_amount)) + "</b>"]]) +
-    (x.caveat ? '<p class="extract-caveat">⚠ ' + esc(x.caveat) + '</p>' : "") +
-    (x.proposed_amount > 0 ? '<button class="btn ghost-fill" data-act="use-extraction">Use this ↓ (fills the form to confirm)</button>' : "") +
-    '<p class="extract-note">AI-extracted from the letter — a draft. Confirm or edit the amount below before recording.</p>' +
+function viewReconciliation(caseId) {
+  let d;
+  try { d = reconcileCase(caseId); }
+  catch (e) {
+    return '<div class="page"><div class="panel"><div class="notice err">Could not open this ' +
+      'case &mdash; ' + esc(e.message) + '</div></div></div>';
+  }
+  const cstate = (d.combined && d.combined.state) || d.state;
+  const brief = fbSummary(caseId);
+  const report = fbReport(d);
+  const docs = ((((DATA.casework || {})[caseId] || {}).loop || {}).documents || [])
+    .filter((x) => !x.superseded).concat(EXTRA_DOCS[caseId] || []);
+
+  const reportLines = report.split("\n");
+  const shownText = reportLines.slice(0, reportShown).join("\n");
+  const streaming = reportShown < reportLines.length;
+
+  // ---- what we are working from
+  const totalRows = docs.reduce((n, x) => n + (x.row_count || (x.rows || []).length), 0);
+  const workingFrom = '<div class="panel"><div class="panel-head">' +
+    '<h2>What the agents are working from</h2>' +
+    '<span class="pill status">' + docs.length + ' document' + (docs.length === 1 ? "" : "s") +
+    ' &middot; ' + totalRows + ' rows</span></div>' +
+    (docs.length
+      ? '<div class="doclist" style="padding:16px 18px">' + docs.map((x) =>
+          '<div class="docrow"><b>' + esc(x.filename) + '</b><span class="sub">' +
+          (x.row_count || (x.rows || []).length) + ' rows &middot; ' +
+          ((x.columns || []).length) + ' columns</span></div>').join("") + '</div>'
+      : '<div class="panel-note" style="border-top:none">Nothing has been received yet. Put the ' +
+        'taxpayer&rsquo;s spreadsheets on the Casework tab and the agents will run against them.' +
+        '</div>');
+
+  return '<div class="page">' + caseHeader(caseId) +
+    caseTabs(caseId, "reconciliation") + lifecycleRail(caseId) +
+
+    // the brief stays: it orients the auditor before anything else
+    '<div class="panel ai-panel"><div class="panel-head"><div class="ai-h">' +
+    '<span class="ai-chip">AI</span><h2>Taxpayer brief</h2></div>' +
+    verifyBadge("deterministic-fallback") + '</div><div class="ai-body">' +
+    '<p class="brief-head">' + esc(brief.headline) + '</p>' +
+    '<ul class="brief-points">' + brief.points.map((x) => "<li>" + esc(x) + "</li>").join("") +
+    '</ul>' +
+    (brief.risk_flags.length ? '<div class="chips">' + brief.risk_flags.map((f) =>
+      '<span class="pill pri-medium">' + esc(f) + '</span>').join("") + '</div>' : "") +
+    '<p class="detail-note" style="margin:10px 0 0">' + esc(brief.prior_pattern) +
+    '</p></div></div>' +
+
+    workingFrom +
+    investigationPanel(caseId) +
+    calculationsPanel(caseId) +
+    letterPanel("Draft letter to the taxpayer", ((DATA.casework || {})[caseId] || {}).verdict) +
+
+    // the audit report
+    '<div class="panel ai-panel"><div class="panel-head"><div class="ai-h">' +
+    '<span class="ai-chip">AI</span><h2>Draft audit report</h2></div>' +
+    '<span id="report-badge">' +
+    (streaming ? '<span class="pill status">AI writing&hellip;</span>'
+               : verifyBadge("deterministic-fallback")) + '</span></div>' +
+    '<div class="ai-body md" id="report-body">' + renderMd(shownText) +
+    (streaming ? '<span class="cursor">&#9613;</span>' : "") + '</div></div>' +
+
+    soonCard("Taxpayer response to the findings",
+      "Recording what the taxpayer says in reply, and re-running the review against it. " +
+      "Outside the current scope.") +
     '</div>';
 }
 
@@ -3282,6 +3292,83 @@ function openDrill(caseId, spec, title, amount) {
   }
   modal = { title, detail, amount };
   renderModal();
+}
+
+
+/* ---- reading a dropped spreadsheet, with no backend and no library
+   CSV is parsed here. An .xlsx is a zip archive and cannot be opened without a library the
+   static build does not carry, so it is named honestly rather than silently ignored. */
+function parseCsv(text) {
+  const rows = [];
+  let row = [], cell = "", quoted = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (quoted) {
+      if (ch === '"' && text[i + 1] === '"') { cell += '"'; i++; }
+      else if (ch === '"') quoted = false;
+      else cell += ch;
+    } else if (ch === '"') quoted = true;
+    else if (ch === ",") { row.push(cell); cell = ""; }
+    else if (ch === "\n") { row.push(cell); rows.push(row); row = []; cell = ""; }
+    else if (ch !== "\r") cell += ch;
+  }
+  if (cell || row.length) { row.push(cell); rows.push(row); }
+  return rows.filter((r) => r.some((c) => String(c).trim()));
+}
+
+const HEADER_ALIASES = {
+  date: "invoice_date", invoice_date: "invoice_date", "invoice date": "invoice_date",
+  issue_date: "invoice_date", "issue date": "invoice_date",
+  invoice_number: "invoice_number", "invoice number": "invoice_number", "invoice no": "invoice_number",
+  customer: "customer_name", "customer name": "customer_name", customer_name: "customer_name",
+  supplier: "supplier_name", "supplier name": "supplier_name", supplier_name: "supplier_name",
+  "customer vat number": "customer_vat_number", customer_vat_number: "customer_vat_number",
+  "supplier vat number": "supplier_vat_number", supplier_vat_number: "supplier_vat_number",
+  description: "description", details: "description",
+  "taxable amount": "taxable_amount", taxable_amount: "taxable_amount", net: "taxable_amount",
+  "vat rate": "vat_rate", vat_rate: "vat_rate", rate: "vat_rate",
+  "vat amount": "vat_amount", vat_amount: "vat_amount", vat: "vat_amount", tax: "vat_amount",
+  "delivery date": "delivery_date", delivery_date: "delivery_date",
+};
+const canonHeader = (h) => {
+  const k = String(h || "").trim().toLowerCase().replace(/\s+/g, " ");
+  return HEADER_ALIASES[k] || k.replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
+};
+
+function pickSpreadsheet(caseId) {
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = ".csv,.tsv,.xlsx,.xlsm";
+  input.multiple = true;
+  input.addEventListener("change", () => {
+    const files = Array.from(input.files || []);
+    let pending = files.length;
+    if (!pending) return;
+    files.forEach((f) => {
+      const name = f.name || "document";
+      if (!/\.(csv|tsv)$/i.test(name)) {
+        (EXTRA_DOCS[caseId] = EXTRA_DOCS[caseId] || []).push({
+          filename: name, columns: [], rows: [], row_count: 0,
+          note: "Excel workbooks need the full app to read. Save it as CSV to work with it here.",
+        });
+        if (!--pending) render();
+        return;
+      }
+      const fr = new FileReader();
+      fr.onload = () => {
+        const grid = parseCsv(String(fr.result || ""));
+        const header = (grid.shift() || []).map(canonHeader);
+        (EXTRA_DOCS[caseId] = EXTRA_DOCS[caseId] || []).push({
+          filename: name, columns: header, rows: grid, row_count: grid.length,
+          received_at: DEMO_TODAY,
+        });
+        if (!--pending) render();
+      };
+      fr.onerror = () => { if (!--pending) render(); };
+      fr.readAsText(f);
+    });
+  });
+  input.click();
 }
 
 /* ------------------------------------------------------------------ router */
@@ -3335,8 +3422,6 @@ function startReport() {
 
 window.addEventListener("hashchange", () => {
   modal = null;
-  extraction = null; letterText = ""; respLabel = ""; respAmount = ""; respDoc = "";
-  confirmDelete = null;
   render();
   if (currentPath().startsWith("/cases/")) startReport();
 });
@@ -3346,8 +3431,50 @@ window.addEventListener("keydown", (e) => {
 });
 
 /* ------------------------------------------------------------------ events */
+document.addEventListener("dragover", (e) => {
+  if (e.target.closest("[data-drop]")) { e.preventDefault(); e.target.closest("[data-drop]").classList.add("over"); }
+});
+document.addEventListener("dragleave", (e) => {
+  const z = e.target.closest("[data-drop]");
+  if (z) z.classList.remove("over");
+});
+document.addEventListener("drop", (e) => {
+  const zone = e.target.closest("[data-drop]");
+  if (!zone) return;
+  e.preventDefault();
+  zone.classList.remove("over");
+  const route = caseRoute(currentPath());
+  if (!route) return;
+  const files = Array.from((e.dataTransfer && e.dataTransfer.files) || []);
+  if (!files.length) return;
+  let pending = files.length;
+  files.forEach((f) => {
+    const name = f.name || "document";
+    if (!/\.(csv|tsv)$/i.test(name)) {
+      (EXTRA_DOCS[route.id] = EXTRA_DOCS[route.id] || []).push({
+        filename: name, columns: [], rows: [], row_count: 0,
+        note: "Excel workbooks need the full app to read. Save it as CSV to work with it here.",
+      });
+      if (!--pending) render();
+      return;
+    }
+    const fr = new FileReader();
+    fr.onload = () => {
+      const grid = parseCsv(String(fr.result || ""));
+      const header = (grid.shift() || []).map(canonHeader);
+      (EXTRA_DOCS[route.id] = EXTRA_DOCS[route.id] || []).push({
+        filename: name, columns: header, rows: grid, row_count: grid.length,
+        received_at: DEMO_TODAY,
+      });
+      if (!--pending) render();
+    };
+    fr.onerror = () => { if (!--pending) render(); };
+    fr.readAsText(f);
+  });
+});
+
 document.addEventListener("click", (e) => {
-  const t = e.target.closest("[data-close],[data-case],[data-drill],[data-act],[data-fam],[data-sev],[data-gap],[data-kind],[data-del],[data-delask],[data-delcancel],[data-remove],[data-calc],[data-calcdel]");
+  const t = e.target.closest("[data-close],[data-case],[data-drill],[data-act],[data-fam],[data-sev],[data-gap],[data-kind],[data-del],[data-delask],[data-delcancel],[data-remove],[data-calc],[data-calcdel],[data-email],[data-drop]");
   if (!t) return;
 
   if (t.hasAttribute("data-close")) {
@@ -3357,16 +3484,35 @@ document.addEventListener("click", (e) => {
   }
   if (t.hasAttribute("data-case")) { location.hash = "#/cases/" + t.getAttribute("data-case"); return; }
 
+  if (t.hasAttribute("data-email")) {
+    const route = caseRoute(currentPath());
+    if (!route) return;
+    const box = document.getElementById("req-email");
+    if (t.getAttribute("data-email") === "sample") {
+      if (box) box.value = SAMPLE_REQUEST_EMAIL;
+      return;
+    }
+    const text = (box || {}).value || "";
+    if (!text.trim()) return;
+    SENT_EMAIL[route.id] = text.trim();
+    render();
+    return;
+  }
+  if (t.hasAttribute("data-drop")) {
+    const route = caseRoute(currentPath());
+    if (!route) return;
+    pickSpreadsheet(route.id);
+    return;
+  }
+
   if (t.hasAttribute("data-calc")) {
     const route = caseRoute(currentPath());
     if (!route) return;
-    const label = (document.getElementById("calc-label") || {}).value || "";
-    const amount = Number((document.getElementById("calc-amount") || {}).value || 0);
-    const op = (document.getElementById("calc-op") || {}).value || "sum";
-    const column = (document.getElementById("calc-col") || {}).value || "";
-    const docName = (document.getElementById("calc-doc") || {}).value || "";
-    if (!label.trim() || !amount) return;
-    recordCalc(route.id, label.trim(), { op, column, document: docName, filters: [] }, amount);
+    const text = (document.getElementById("calc-text") || {}).value || "";
+    if (!text.trim()) return;
+    const docs = ((((DATA.casework || {})[route.id] || {}).loop || {}).documents || [])
+      .filter((x) => !x.superseded).concat(EXTRA_DOCS[route.id] || []);
+    recordCalcFromText(route.id, text.trim(), docs);
     render();
     return;
   }
@@ -3393,19 +3539,6 @@ document.addEventListener("click", (e) => {
   if (t.hasAttribute("data-sev")) { const v = t.getAttribute("data-sev"); rulesSev = rulesSev === v ? null : v; render(); return; }
   if (t.hasAttribute("data-gap")) { const v = t.getAttribute("data-gap"); rulesGap = rulesGap === v ? null : v; render(); return; }
   if (t.hasAttribute("data-kind")) { const v = t.getAttribute("data-kind"); rulesKind = rulesKind === v ? null : v; render(); return; }
-  if (t.hasAttribute("data-delask")) { confirmDelete = t.getAttribute("data-delask"); render(); return; }
-  if (t.hasAttribute("data-delcancel")) { confirmDelete = null; render(); return; }
-  if (t.hasAttribute("data-del")) {
-    const code = t.getAttribute("data-del");
-    STATE.rules = STATE.rules.filter((r) => r.code !== code);
-    confirmDelete = null; render(); return;
-  }
-  if (t.hasAttribute("data-remove")) {
-    const seq = Number(t.getAttribute("data-remove"));
-    const cid = decodeURIComponent(currentPath().slice(7));
-    STATE.responses[cid] = (STATE.responses[cid] || []).filter((r) => r.seq !== seq);
-    render(); startReport(); return;
-  }
 
   const act = t.getAttribute("data-act");
   if (act === "reset") {
@@ -3413,59 +3546,6 @@ document.addEventListener("click", (e) => {
     STATE = { rules: SEED_RULES.map((r) => ({ ...r })), responses: {} };
     resetState = "idle";
     render();
-    return;
-  }
-  if (act === "sample-letter") {
-    const cid = decodeURIComponent(currentPath().slice(7));
-    const difference = Math.max(0, Math.round(reconcileCase(cid).unexplained));
-    letterText = "Dear Sir/Madam,\n\nFurther to your enquiry regarding our Q1 2025 VAT return, we confirm that the " +
-      "difference of SAR " + difference.toLocaleString("en-US") +
-      " between your reconstruction and our declared output VAT relates to standard-rated sales that were " +
-      "invoiced and delivered in December 2024 and already declared in our prior-period (Q4 2024) return. " +
-      "The clearance timestamps fell in early January 2025, which is why they appear in this period's e-invoice " +
-      "data. Our sales ledger and the prior return are attached as supporting evidence.\n\nRegards,\nFinance Department";
-    extraction = null;
-    render();
-    return;
-  }
-  if (act === "analyse") {
-    // No backend and no API key: this is exactly what llm.read_letter returns in that state.
-    extraction = {
-      explains_gap: false, category: "none",
-      summary: "Automated reading is unavailable — review the letter and enter the amount by hand.",
-      quote: "", proposed_amount: 0, confidence: "low",
-      caveat: "Enter and confirm the amount manually from the letter.",
-      source: "deterministic-fallback",
-    };
-    render();
-    return;
-  }
-  if (act === "use-extraction") {
-    if (!extraction) return;
-    respLabel = extraction.summary;
-    respAmount = String(Math.max(0, Math.round(extraction.proposed_amount)));
-    respDoc = "taxpayer_letter.pdf";
-    render();
-    return;
-  }
-  if (act === "sample-resp") {
-    const cid = decodeURIComponent(currentPath().slice(7));
-    const difference = reconcileCase(cid).unexplained;
-    respLabel = "Sales ledger provided by the taxpayer shows the difference relates to prior-period invoices already declared in an earlier return.";
-    respAmount = String(Math.max(0, Math.round(difference)));
-    respDoc = "sales_ledger_Q1-2025.xlsx";
-    render();
-    return;
-  }
-  if (act === "record") {
-    const cid = decodeURIComponent(currentPath().slice(7));
-    if (!respLabel.trim() || !respAmount) return;
-    const list = STATE.responses[cid] || (STATE.responses[cid] = []);
-    const seq = list.length + 1;
-    list.push({ seq, code: "RESP-" + String(seq).padStart(2, "0"), label: respLabel.trim(),
-      amount: Math.abs(Number(respAmount)), doc_name: respDoc.trim() });
-    respLabel = ""; respAmount = ""; respDoc = "";
-    render(); startReport();
     return;
   }
 });
@@ -3479,22 +3559,10 @@ document.addEventListener("change", (e) => {
   render();
 });
 
-/* keep typed values without re-rendering on every keystroke */
-document.addEventListener("input", (e) => {
-  const id = e.target.id;
-  if (id === "rule-q") { rulesQ = e.target.value; const pos = e.target.selectionStart; render();
-    const el = document.getElementById("rule-q"); if (el) { el.focus(); el.setSelectionRange(pos, pos); } return; }
-  if (id === "letter") { letterText = e.target.value; toggleDisabled('[data-act="analyse"]', !letterText.trim()); return; }
-  if (id === "resp-label") { respLabel = e.target.value; syncRecordBtn(); return; }
-  if (id === "resp-amount") { respAmount = e.target.value; syncRecordBtn(); return; }
-  if (id === "resp-doc") { respDoc = e.target.value; return; }
-});
-function toggleDisabled(sel, disabled) { const b = document.querySelector(sel); if (b) b.disabled = disabled; }
-function syncRecordBtn() { toggleDisabled('[data-act="record"]', !(respLabel.trim() && respAmount)); }
 
 document.addEventListener("keydown", (e) => {
   if (e.key !== "Enter" && e.key !== " ") return;
-  const row = e.target.closest(".brow.clickable");
+  const row = e.target.closest(".frow.clickable");
   if (!row) return;
   e.preventDefault();
   row.click();
