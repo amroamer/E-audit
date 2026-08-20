@@ -108,6 +108,13 @@ def data_entry(ctx: CaseContext) -> list[Hypothesis]:
             claim="The declared figure may carry the supported figure's digits in a different "
                   "order, which would indicate a transposition when the return was keyed.",
             test=TestSpec(kind="digit-transposition", box="output")))
+        out.append(Hypothesis(
+            id="DE-03", agent=DATA_ENTRY, reason_code="R10", confidence="medium",
+            why="A declaration far outside this taxpayer's own filing range supports a keying "
+                "explanation over a trading one.",
+            claim="The declaration may be out of character for this taxpayer's own trading "
+                  "history, which would support a data-entry explanation over a trading one.",
+            test=TestSpec(kind="historical-magnitude", box="output")))
     return out
 
 

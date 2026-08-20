@@ -8,6 +8,16 @@ async function getJSON<T>(path: string): Promise<T> {
   return (await r.json()) as T;
 }
 
+async function postJSON<T>(path: string, body: unknown): Promise<T> {
+  const r = await fetch(BASE + path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
+  return (await r.json()) as T;
+}
+
 export interface PriorityScore {
   score: number;
   band: string;
@@ -63,10 +73,39 @@ export interface Hypothesis {
   id: string;
   agent: string;
   claim: string;
+  /** what the agent saw on the case file that made this worth testing */
+  why: string;
+  /** the outcome in the Authority's vocabulary this becomes if confirmed */
+  outcome_code: string;
   reason_code: string;
   test: { kind: string; box: string; params: Record<string, unknown> };
   evidence_refs: string[];
   confidence: "high" | "medium" | "low";
+}
+
+/** A confirmed hypothesis, worded by the Authority's own vocabulary. This — never an
+ *  agent's exploratory `claim` — is what reaches the report and the taxpayer letter. */
+export interface Finding {
+  code: string;
+  statement: string;
+  amount: number;
+  effect: "increases-output" | "disallows-input" | "documentation";
+  direction: string;
+  agent: string;
+  hypothesis_id: string;
+  /** the evidence this rests on; findings sharing a basis are readings of one amount */
+  basis: string;
+  why: string;
+  explanation: string;
+  detail: Record<string, any>;
+}
+export interface Exposure {
+  increases_output: number;
+  disallows_input: number;
+  documentation_at_risk: number;
+  total: number;
+  count: number;
+  distinct_bases: number;
 }
 export interface Adjudication {
   hypothesis_id: string;
@@ -92,6 +131,8 @@ export interface Investigation {
   conclusion: string;
   unexplained: number;
   source: string;
+  findings: Finding[];
+  exposure: Exposure;
 }
 
 export interface ScopeItem {
@@ -498,3 +539,116 @@ export const readLetter = async (id: string, text: string): Promise<LetterExtrac
   if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
   return r.json();
 };
+
+/* ---- the post-receipt workflow -------------------------------------------
+   Planning is out of scope: a case starts when the taxpayer's documents arrive.
+   These cover recovering the request spec from the email that was sent, checking
+   the auditor's own arithmetic, and the drafts that go back out. */
+
+export interface ParsedRequestItem {
+  key: string;
+  label: string;
+  required_columns: string[];
+  mandatory_columns: string[];
+  /** the phrase in the email that produced this match, so the parse can be checked */
+  cue: string;
+  source: "keyword" | "model" | "auditor";
+  confidence: "high" | "medium" | "low";
+}
+export interface ParsedRequest {
+  items: ParsedRequestItem[];
+  period_from: string | null;
+  period_to: string | null;
+  due_phrase: string;
+  columns_stated: Record<string, string[]>;
+  /** asks the parser could not place — for the auditor to resolve, never guessed */
+  unmatched: string[];
+  source: string;
+  needs_confirmation: boolean;
+  catalog: { key: string; label: string; kind: string; description: string;
+             required_columns: string[] }[];
+}
+
+export type CalcStatus = "agree" | "disagree" | "not-checkable" | "ok";
+
+export interface CalcQuerySpec {
+  op: string;
+  column?: string;
+  document?: string;
+  filters?: { column: string; op: string; value?: unknown }[];
+}
+export interface CalcResultDetail {
+  status: string;
+  value: number | null;
+  matched: number;
+  scanned: number;
+  column: string;
+  document: string;
+  query: string;
+  rows: Record<string, any>[];
+  note: string;
+}
+export interface CalcAnswer {
+  status: CalcStatus;
+  answer: number | null;
+  understood: string;
+  note: string;
+  detail: CalcResultDetail | Record<string, never>;
+  source: string;
+}
+export interface AuditorCalculation {
+  id: number;
+  seq: number;
+  label: string;
+  method: string;
+  stated: number;
+  document: string;
+  query: string;
+  understood: string;
+  status: CalcStatus;
+  computed: number | null;
+  delta: number;
+  explanation: string;
+  source: string;
+  detail: Record<string, any>;
+}
+export interface CalcListing {
+  calculations: AuditorCalculation[];
+  documents: { filename: string; columns: string[]; row_count: number }[];
+}
+
+export interface StepEmail {
+  step: "response-check" | "closure";
+  kind: "follow-up" | "verdict";
+  title: string;
+  /** why this draft exists — a draft appears only when it has something to say */
+  trigger: string;
+  text: string;
+  source: string;
+  violations?: string[];
+}
+export interface StepEmails {
+  case_id: string;
+  emails: StepEmail[];
+  findings: Finding[];
+  exposure: Exposure;
+}
+
+export const parseRequestEmail = (id: string, text: string) =>
+  postJSON<ParsedRequest>(`/cases/${id}/request-email/parse`, { text });
+
+export const askCalc = (id: string, question: string, spec?: CalcQuerySpec) =>
+  postJSON<CalcAnswer>(`/cases/${id}/calc/ask`, { question, spec });
+
+export const checkCalc = (
+  id: string,
+  body: { label: string; method?: string; stated_amount: number;
+          document_name?: string; spec?: CalcQuerySpec },
+) => postJSON<AuditorCalculation>(`/cases/${id}/calc/check`, body);
+
+export const listCalcs = (id: string) => getJSON<CalcListing>(`/cases/${id}/calc`);
+
+export const deleteCalc = (id: string, calcId: number) =>
+  fetch(`/api/cases/${id}/calc/${calcId}`, { method: "DELETE" }).then((r) => r.json());
+
+export const getStepEmails = (id: string) => getJSON<StepEmails>(`/cases/${id}/emails`);

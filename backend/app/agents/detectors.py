@@ -126,7 +126,11 @@ def recomputation(ctx: CaseContext) -> list[Hypothesis]:
     return out
 
 
-AGENTS = (reconstruction_analyst, data_entry_forensics, historical_pattern, recomputation)
+# `data_entry_forensics` is NOT in this roster. The post-receipt roster's Data Entry agent
+# (agents/roster.py) is the same specialist under the name the auditors gave it, and running
+# both would put two DE-01s on the case file. It is kept here only for the tests that predate
+# the rescope.
+AGENTS = (reconstruction_analyst, historical_pattern, recomputation)
 
 
 def propose(ctx: CaseContext) -> list[Hypothesis]:

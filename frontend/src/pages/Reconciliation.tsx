@@ -4,8 +4,10 @@ import TaxpayerBrief from "../components/TaxpayerBrief";
 import AiNarration from "../components/AiNarration";
 import NextBestAction from "../components/NextBestAction";
 import AuditReport from "../components/AuditReport";
-import VerdictLetter from "../components/VerdictLetter";
 import InvestigationPanel from "../components/InvestigationPanel";
+import FindingsPanel from "../components/FindingsPanel";
+import CalculationPanel from "../components/CalculationPanel";
+import StepEmails from "../components/StepEmails";
 import CaseTabs from "../components/CaseTabs";
 import LifecycleRail from "../components/LifecycleRail";
 import TaxpayerResponsePanel from "../components/TaxpayerResponsePanel";
@@ -506,10 +508,12 @@ export default function Reconciliation() {
       )}
 
       <InvestigationPanel id={id} rev={rev} />
+      <FindingsPanel id={id} rev={rev} />
+      <CalculationPanel id={id} onChanged={() => setRev((r) => r + 1)} />
       <NextBestAction id={id} rev={rev} />
       <TaxpayerResponsePanel id={id} difference={d.unexplained} onChanged={() => setRev((r) => r + 1)} />
+      <StepEmails id={id} rev={rev} />
       <AuditReport id={id} rev={rev} />
-      <VerdictLetter id={id!} />
 
       {modal && (
         <Modal title={modal.title} onClose={() => setModal(null)}>

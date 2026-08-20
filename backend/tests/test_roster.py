@@ -213,3 +213,44 @@ def test_auditor_figure_refuted_when_everything_reproduced():
             calculations=[{"status": "agree", "label": "ok", "delta": 0.0}])
     h = roster.calculation(c)
     assert not [x for x in h if x.test.kind == "auditor-figure"]
+
+
+# ================================================== both rosters, run together
+def test_ids_are_unique_across_BOTH_rosters():
+    """The orchestrator runs the reconciliation detectors and the document agents together.
+
+    Testing each roster alone missed a real collision: the old data_entry_forensics and the new
+    Data Entry agent both emitted DE-01 and DE-02, which put duplicate hypotheses on the case
+    file and duplicate keys in the UI. The combined set is what has to be unique.
+    """
+    from app.agents.detectors import propose as propose_recon
+    from app.agents.roster import propose as propose_documents
+
+    low = {**RECON, "declared": 10_000.0, "purchase": {**BOX, "declared": 10_000.0}}
+    c = CaseContext(recon=low, documents=[SALES, PURCHASES], cr_activities=ACTIVITIES,
+                    prior_returns=[{"vat_amount": 500_000.0}, {"vat_amount": 520_000.0}],
+                    prior_cases=[{"case_id": "OLD", "root_cause_code": "OUT-01"}],
+                    calculations=[{"status": "disagree", "label": "x", "delta": 5.0}],
+                    gaps=[{"kind": "missing-item", "item_label": "TB"}])
+    ids = [h.id for h in propose_recon(c) + propose_documents(c)]
+    assert len(ids) == len(set(ids)), f"duplicate ids: {sorted({i for i in ids if ids.count(i) > 1})}"
+
+
+def test_the_keying_specialist_is_not_run_twice():
+    """One Data Entry agent, under the name the auditors gave it."""
+    from app.agents.detectors import AGENTS as RECON_AGENTS
+
+    assert all(a.__name__ != "data_entry_forensics" for a in RECON_AGENTS)
+
+
+def test_retiring_the_old_agent_lost_no_test():
+    """DE-03's historical-magnitude check moved across rather than disappearing."""
+    off = {**RECON, "declared": 10_000.0, "unexplained": 155_000.0,
+           "purchase": RECON["purchase"]}
+    kinds = {h.test.kind for h in roster.data_entry(ctx(recon=off))}
+    assert kinds == {"decimal-shift", "digit-transposition", "historical-magnitude"}
+
+
+def test_the_keying_agent_stays_quiet_on_an_immaterial_difference():
+    """Nothing was keyed wrong if nothing is out — proposing anyway wastes the auditor."""
+    assert roster.data_entry(ctx()) == []

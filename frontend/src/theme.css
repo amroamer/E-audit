@@ -211,7 +211,8 @@ td .sub{font-size:11.5px;color:var(--faint);margin-top:2px}
 .minibar b{color:var(--ink);font-weight:650;font-variant-numeric:tabular-nums;margin-left:5px}
 .letter{display:flex;flex-direction:column;gap:10px}
 .letter-head{display:flex;align-items:center;gap:9px;font-size:12.5px}
-.letter-input{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:10px;padding:11px 13px;font:inherit;font-size:13.5px;line-height:1.55;resize:vertical;min-height:96px}
+.letter-input{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:10px;padding:11px 13px;font:inherit;font-size:13.5px;line-height:1.55;resize:vertical;min-height:96px;width:100%}
+input.letter-input,select.letter-input{min-height:0}
 .letter-input:focus{outline:2px solid var(--ai);outline-offset:1px;border-color:transparent}
 .letter-input::placeholder{color:var(--faint)}
 .extract-card{border:1px solid var(--ai);background:color-mix(in srgb, var(--ai) 7%, transparent);border-radius:12px;padding:14px 15px;display:flex;flex-direction:column;gap:10px}
@@ -443,3 +444,103 @@ td .sub{font-size:11.5px;color:var(--faint);margin-top:2px}
 .erow .eamt{font-family:var(--mono);font-variant-numeric:tabular-nums}
 .erow.total{cursor:default;font-weight:650;border-bottom:none;border-top:2px solid var(--line)}
 .erow.total:hover{background:none}
+
+/* ============================================================ the post-receipt workflow
+   Intake (who they are, what arrived), the auditor's own calculations, the findings in the
+   Authority's wording, and the reasoning behind each hypothesis. */
+
+/* --- case context: registration + audit history --------------------------------- */
+.ctx{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:1px;background:var(--line)}
+.ctx-block{background:var(--surface);padding:16px 18px}
+.ctx-block h4{margin:0 0 10px;font-size:12px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);font-weight:700}
+.acts{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:7px}
+.acts li{display:flex;align-items:center;gap:7px;font-size:13px;line-height:1.4;flex-wrap:wrap}
+.kv2{display:grid;grid-template-columns:1fr 1fr;gap:9px 14px}
+.kv2>div{display:flex;flex-direction:column;gap:2px;font-size:13px;font-weight:600}
+.causes{margin-top:11px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+
+/* --- the request email parse ------------------------------------------------------ */
+.row-actions{display:flex;align-items:center;gap:12px;margin-top:11px;flex-wrap:wrap}
+.parsed-head{display:flex;align-items:baseline;gap:14px;margin:18px 0 10px;flex-wrap:wrap;
+  padding-top:14px;border-top:1px solid var(--line)}
+.parsed-item{display:flex;gap:11px;align-items:flex-start;padding:11px 12px;border:1px solid var(--line);
+  border-radius:10px;margin-bottom:8px;cursor:pointer;transition:border-color .12s,background .12s}
+.parsed-item:hover{background:var(--surface-2)}
+.parsed-item.on{border-color:var(--brand);background:var(--brand-tint)}
+:root[data-theme="dark"] .parsed-item.on{background:transparent}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]) .parsed-item.on{background:transparent}}
+.parsed-item input{margin-top:3px;flex:none}
+.parsed-item b{display:inline-flex;align-items:center;gap:8px}
+.cols{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+
+/* --- the dropzone and the received files ------------------------------------------ */
+.dropzone{border:2px dashed var(--line);border-radius:12px;padding:26px 20px;text-align:center;
+  cursor:pointer;display:flex;flex-direction:column;gap:5px;transition:border-color .15s,background .15s}
+.dropzone:hover,.dropzone.over{border-color:var(--brand);background:var(--brand-tint)}
+:root[data-theme="dark"] .dropzone:hover,:root[data-theme="dark"] .dropzone.over{background:var(--surface-2)}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]) .dropzone:hover,
+  :root:not([data-theme="light"]) .dropzone.over{background:var(--surface-2)}}
+.doclist{display:flex;flex-direction:column;gap:9px;margin-top:14px}
+.docrow{border:1px solid var(--line);border-radius:10px;padding:11px 13px;display:flex;
+  flex-direction:column;gap:4px}
+
+/* --- the auditor's calculations --------------------------------------------------- */
+.calc-tabs{display:flex;gap:8px;padding:14px 18px 0}
+.calc-tab{border:1px solid var(--line);background:var(--surface);color:var(--muted);font:inherit;
+  font-size:13px;font-weight:600;padding:7px 13px;border-radius:9px;cursor:pointer}
+.calc-tab.on{border-color:var(--brand);color:var(--brand-deep);background:var(--brand-tint)}
+:root[data-theme="dark"] .calc-tab.on{color:var(--brand);background:transparent}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]) .calc-tab.on{color:var(--brand);background:transparent}}
+.calc-form{padding:14px 18px;display:flex;flex-direction:column;gap:10px}
+.calc-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.calc-query{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.calc-select{padding:9px 11px}
+.calc-answer{border:1px solid var(--line);border-radius:10px;padding:13px 15px;font-size:22px;
+  font-weight:700;font-variant-numeric:tabular-nums}
+.calc-answer.ok{border-color:var(--brand);background:var(--brand-tint)}
+:root[data-theme="dark"] .calc-answer.ok{background:transparent}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]) .calc-answer.ok{background:transparent}}
+.calc-answer.warn{border-color:var(--high);font-size:13px;font-weight:500}
+.calc-answer .sub{font-size:12px;font-weight:500;display:block;margin-top:4px}
+.calc-list{padding:0 18px 4px;display:flex;flex-direction:column;gap:10px}
+.calc-item{border:1px solid var(--line);border-radius:10px;padding:12px 14px;display:flex;
+  flex-direction:column;gap:6px}
+.calc-item-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.calc-item-top b{flex:1}
+.calc-figures{display:flex;gap:18px;flex-wrap:wrap;font-size:13px;font-weight:650;
+  font-variant-numeric:tabular-nums}
+.calc-delta{color:var(--high)}
+
+/* --- findings, in the Authority's wording ----------------------------------------- */
+.exposure{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:1px;
+  background:var(--line);border-bottom:1px solid var(--line)}
+.exp{background:var(--surface);padding:13px 16px;display:flex;flex-direction:column;gap:3px}
+.exp-l{font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);font-weight:700}
+.exp b{font-size:19px;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.exp.total b{color:var(--brand-deep)}
+:root[data-theme="dark"] .exp.total b{color:var(--brand)}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]) .exp.total b{color:var(--brand)}}
+.findings{padding:16px 18px;display:flex;flex-direction:column;gap:12px}
+.finding{border:1px solid var(--line);border-radius:11px;padding:14px 16px;display:flex;
+  flex-direction:column;gap:8px}
+.f-top{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.f-amt{margin-left:auto;font-size:17px;font-variant-numeric:tabular-nums}
+.f-statement{font-size:14px;font-weight:650;line-height:1.45}
+.f-why,.f-also{font-size:12.5px;color:var(--muted);line-height:1.5}
+.f-also ul{margin:5px 0 0;padding-left:0;list-style:none;display:flex;flex-direction:column;gap:4px}
+.f-also li{display:flex;gap:7px;align-items:baseline}
+.f-agent{font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--faint);font-weight:700}
+
+/* --- hypothesis reasoning --------------------------------------------------------- */
+.hyp-why{margin-top:7px;font-size:12.5px;color:var(--muted);line-height:1.5}
+.hyp-why b{color:var(--ink);font-weight:650;margin-right:5px}
+.verdict-confirmed b{color:var(--high)}
+.verdict-refuted b{color:var(--brand-deep)}
+:root[data-theme="dark"] .verdict-refuted b{color:var(--brand)}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]) .verdict-refuted b{color:var(--brand)}}
+.hyp-more{margin-top:7px;font-size:12px}
+.hyp-test{margin-top:8px;border-top:1px dashed var(--line);padding-top:9px;display:flex;
+  flex-direction:column;gap:5px;font-size:12.5px}
+.hyp-test .k{margin-right:7px}
+.hyp-test code{font-family:var(--mono);font-size:11.5px;background:var(--surface-2);
+  border:1px solid var(--line);border-radius:5px;padding:1px 6px}
