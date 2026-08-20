@@ -299,10 +299,16 @@ the predicate algebra exists to prevent. `test_pipeline.py` asserts the two agre
 `portal.html` is a single self-contained build of the workbench — no backend, no
 database, no build step. It ports `theme.css` verbatim and re-implements the
 deterministic core in JavaScript over the seeded demo data, so the qualification
-funnel, the rulebook toggles and the taxpayer-response loop still recompute in
-the browser — toggling a rule re-runs `qualify()` and moves the expected figure.
+funnel, the rulebook toggles, the four agents, the findings and the taxpayer-response
+loop all still recompute in the browser — toggling a rule re-runs `qualify()` and moves
+the expected figure, and a figure you record is recomputed from the embedded rows the
+same way Python recomputes it.
 Its AI panels show the same deterministic fallbacks the app renders with no API
 key.
+
+Uploading is the one thing a static file cannot do, so the received documents are embedded
+**with their rows** — which is what lets the source seam, the agents and the calculation
+panel all work offline.
 
 Its rule is **port what the user can change, embed what they cannot.** The
 reconciliation, priority, investigation and the lifecycle rail all move when a
@@ -314,7 +320,7 @@ should stay explicit.
 
 If you change the engine, the seed data or the rule taxonomy, regenerate it — the
 JS port is validated field-by-field against the Python engine's output (currently
-12,639 comparisons, 0 failures).
+12,713 comparisons, 0 failures).
 
 ## Running locally
 
