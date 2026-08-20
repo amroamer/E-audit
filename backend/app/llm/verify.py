@@ -271,7 +271,7 @@ def fb_report(recon: dict) -> str:
                    for e in recon.get("evidence", []))
     return (f"## Case summary\n"
             f"{int(recon.get('counted_lines', 0))} of "
-            f"{int(recon.get('population_lines', 0))} {recon['box'].lower()} lines qualify for "
+            f"{int(recon.get('population_lines', 0))} documents qualify for {recon['box']} in "
             f"this period, totalling {_sar(recon['expected_vat'])}. The return declares "
             f"{_sar(recon['declared'])}.\n\n"
             f"## Which documents qualify\n{steps}\n\n"

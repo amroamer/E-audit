@@ -33,7 +33,7 @@ from sqlalchemy.orm import Session
 
 from .models import (
     AuditCase, VatReturn, Invoice, Rule,
-    CaseRecon, RebuiltBox, QualificationStep, Residual, Conclusion, EventLog,
+    CaseRecon, BoxOutcome, QualificationStep, Unexplained, Conclusion, EventLog,
     TaxpayerResponse,
 )
 from .pipeline.rules import BOX_PURCHASE, BOX_SALES
@@ -381,7 +381,7 @@ def reconcile_case(db: Session, case_id: str, *, persist: bool = True) -> dict:
     # (read-only) so their concurrent fan-out can't race on the recon tables.
     if persist:
         for p in db.scalars(select(CaseRecon).where(CaseRecon.case_id == case_id)).all():
-            for tbl in (QualificationStep, RebuiltBox, Residual, Conclusion):
+            for tbl in (QualificationStep, BoxOutcome, Unexplained, Conclusion):
                 db.execute(delete(tbl).where(tbl.case_recon_id == p.id))
         db.execute(delete(CaseRecon).where(CaseRecon.case_id == case_id))
         db.flush()
@@ -393,10 +393,10 @@ def reconcile_case(db: Session, case_id: str, *, persist: bool = True) -> dict:
         )
         db.add(cr)
         db.flush()
-        db.add(RebuiltBox(
+        db.add(BoxOutcome(
             case_recon_id=cr.id, box_code=BOX_SALES, direction="sale",
-            rebuilt_base=result["expected_base"], rebuilt_vat=result["expected_vat"],
-            declared_vat=declared, gap_vat=difference,
+            expected_base=result["expected_base"], expected_vat=result["expected_vat"],
+            declared_vat=declared, difference=difference,
         ))
         # the audit trail of the narrowing: one row per rule that removed documents
         for seq, f in enumerate([x for x in result["funnel"]
@@ -405,8 +405,8 @@ def reconcile_case(db: Session, case_id: str, *, persist: bool = True) -> dict:
                 case_recon_id=cr.id, seq=seq, stage=f["stage"], rule_code=f["rule"] or "",
                 verdict=f["kind"], label=f["label"],
                 line_count=f["count"], amount=f["amount"]))
-        db.add(Residual(case_recon_id=cr.id, box_code=BOX_SALES,
-                        amount=unexplained, band=band, state=state))
+        db.add(Unexplained(case_recon_id=cr.id, box_code=BOX_SALES,
+                           amount=unexplained, band=band, state=state))
         db.add(Conclusion(case_recon_id=cr.id, state=state,
                           financial_impact=max(unexplained, 0.0), narrative=""))
         db.add(EventLog(case_id=case_id, actor="engine", action="reconcile",

@@ -17,7 +17,8 @@ ASSUMPTIONS = [
     ("timing.tax_point", "issue_date", "Tax point = invoice IssueDate; delivery only for straddle tests."),
     ("version.selector", "as_filed_at_referral", "Reconcile the version filed at referral, not merely Current_Flag='Y'."),
     ("box14.sign_mode", "subtract", "Box16 = Box13 + Box14 - Box15 (sign decided analytically)."),
-    ("materiality.floor_sar", "1000", "Residual flagged when |gap| > max(SAR 1000, 0.5% of box)."),
+    ("materiality.floor_sar", "1000",
+     "Flagged when what is left unexplained > max(SAR 1000, 0.5% of box)."),
     ("materiality.rel_pct", "0.5", "Relative materiality (%) of the compared box."),
 ]
 

@@ -1,7 +1,14 @@
 # DEMO POC PLAN — AI VAT Audit Agent
 ### KPMG × ZATCA | React + FastAPI + PostgreSQL | Claude-powered stakeholder demo
 
-**The one sentence this build proves:** a business viewer watches a single flagged case — *Al-Faisaliah Trading* — walk from Intake to Approve (steps 1→9) on screen; sees an alarming **SAR 480k apparent gap** get rebuilt from e-invoices and **dissolve, rule by deterministic rule, into named legitimate reasons down to a true SAR 75k residual**; watches **Claude write the audit report live**; and sees, at four clearly-labelled points, that *Python computed every number and Claude only wrote the words* — with **no AI-produced figure ever touching the residual**.
+> **Superseded in part — historical planning record.** The reconciliation framing below
+> ("apparent gap", "explained by rules", the bridge/waterfall) was **retired**: rules decide
+> *which documents qualify*, and the expected figure is the sum of the ones that do. There is
+> no pre-qualification total and nothing is "explained away". See **Qualify, then sum** in
+> `CLAUDE.md` for what the build actually does. The stage-by-stage demo choreography and the
+> attribution claim below still hold.
+
+**The one sentence this build proves:** a business viewer watches a single flagged case — *Al-Faisaliah Trading* — walk from Intake to Approve (steps 1→9) on screen; sees the agent decide **which of the 27 sale documents on file actually qualify** for the period (25 do; two are supplies of the next quarter), sum them to **SAR 2,075,000** against a declared **SAR 2,000,000**, and put the **SAR 75,000 difference** in front of the auditor; watches **Claude write the audit report live**; and sees, at four clearly-labelled points, that *Python computed every number and Claude only wrote the words* — with **no AI-produced figure ever touching the difference**.
 
 Storytelling and tie-out beat edge-case coverage. Every mocked part is labelled on screen — honesty is a feature, not an apology. The binary attribution claim (**violet = Claude wrote it · slate ∑ = Python computed it**) is now literally true everywhere on screen, because no Claude call in the demo emits a number that moves a total.
 

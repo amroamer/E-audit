@@ -1,10 +1,16 @@
 # ZATCA VAT Audit Agent — Demo PoC
 
 An AI-assisted VAT audit workbench for ZATCA. It picks up a case **after** the risk engine
-has flagged a taxpayer + period, reconstructs the expected VAT return from cleared e-invoices,
-reconciles it against the declared return, explains every legitimate difference down to a true
-unexplained residual, recommends the next best action, and drafts an evidence-backed report for
-an auditor to approve.
+has flagged a taxpayer + period, decides which cleared e-invoices actually qualify for the box
+and the period, sums them into the **expected** return, compares that against what was
+**declared**, accounts for whatever evidence the taxpayer supplies, recommends the next best
+action on what is still unexplained, and drafts an evidence-backed report for an auditor to
+approve.
+
+The rules decide **which documents count** — they are not deductions from a total. An invoice
+delivered after the period end was never a supply of that period, so it does not appear as a
+subtraction; it appears in the funnel as a document that did not qualify, and the expected
+figure is simply the sum of the ones that did.
 
 - **Deterministic core** (Python) computes every number.
 - **Claude** (`claude-opus-5`) only writes/explains language — it never introduces a figure.
@@ -48,10 +54,7 @@ is a stated design decision with a named home in the taxonomy. The live list is
 served from `GET /api/scope` and shown on the Overview page — `backend/app/scope.py`
 is the single source, so the README, the API and the UI cannot drift apart.
 
-## Phase 0 — Foundation (this milestone)
-Data model + config + seed data + a themed app shell. Reconstruction/bridge/AI features land in later phases.
-
-### Run
+## Run
 
 ```bash
 # 1. backend — no Docker, no Postgres, seeds itself on first run

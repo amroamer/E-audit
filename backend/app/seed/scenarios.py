@@ -1,7 +1,9 @@
 """Demo scenarios — synthetic taxpayers whose data tells a clear story on screen.
 
-Phase 0 seeds coherent declared returns + e-invoice evidence + a referred case.
-The reconstruction/bridge that turns this into the on-screen narrative lands in a later phase.
+Each scenario seeds a coherent declared return, the e-invoice evidence behind it, and a
+referred case. The engine decides which of those e-invoices qualify for the box and the
+period, sums them, and compares that with the return — so the story a scenario tells is set
+entirely by which documents it makes qualify.
 """
 from __future__ import annotations
 
@@ -61,7 +63,7 @@ def _box(code: str, label: str, direction: str, base: float, vat: float,
 
 
 def scenario_alfaisaliah(db: Session) -> None:
-    """Hero case: SAR 480k apparent output-VAT gap that later dissolves to ~SAR 75k residual."""
+    """Hero case: 27 sale documents on file, 25 qualify, and they exceed the return by 75k."""
     tp = Taxpayer(
         vat_registration_number="300012345600003", partner="BP100001",
         id_number="7001234567", name="Al-Faisaliah Trading Co.",
@@ -89,12 +91,11 @@ def scenario_alfaisaliah(db: Session) -> None:
     ]
     db.add(ret)
 
-    # Evidence — crafted so reconstruction tells the SAR 480k → 75k story:
-    #   20 in-period tax invoices (388) @15% ......... VAT  2,380,000
-    #    2 clearance-lag 388 (delivered in Q2) ........ VAT    100,000  → belong to next period
-    #    5 credit notes (381) already in the return ... VAT   -305,000
-    #   gross 388 = 2,480,000 vs declared 2,000,000  → apparent gap 480,000
-    #   less credit notes 305,000 and timing 100,000  → true residual 75,000
+    # Evidence — crafted so the qualifying set lands SAR 75,000 above the return:
+    #   20 in-period tax invoices (388) @15% ......... VAT  2,380,000   qualify
+    #    5 credit notes (381) .......................... VAT   -305,000   qualify (COR-01)
+    #    2 clearance-lag 388 (delivered in Q2) ......... VAT    100,000   OUT-07 → next period
+    #   expected = 2,380,000 - 305,000 = 2,075,000 vs declared 2,000,000 → difference 75,000
     for i in range(20):
         db.add(_sale_invoice(tp, i + 1, 793_333.33, 15, date(2025, 1, 10)))          # VAT 119,000 ea
     for i in range(2):
@@ -201,9 +202,10 @@ def scenario_rawabi_creditnotes(db: Session) -> None:
     ]
     db.add(ret)
 
-    # 20 tax invoices @15% (VAT 75,000 ea) → gross 1,500,000
-    # 5 credit notes (381) @ VAT -60,000 ea → -300,000  (already reflected in the declared 1,200,000)
-    #   apparent gap 300,000 → fully explained by COR-01 → residual 0
+    # All 25 documents qualify — there is no funnel step at all:
+    #   20 tax invoices @15% (VAT 75,000 ea) ..... +1,500,000
+    #    5 credit notes (381) @ VAT -60,000 ea ...   -300,000   (COR-01 admits them)
+    #   expected = 1,200,000 = declared 1,200,000 → difference 0
     for i in range(20):
         db.add(_sale_invoice(tp, i + 1, 500_000, 15, date(2025, 2, 5)))
     for i in range(5):
@@ -250,9 +252,11 @@ def scenario_tabuk_timing(db: Session) -> None:
     ]
     db.add(ret)
 
-    # 16 in-period invoices (VAT 50,000 ea) → 800,000 ties to the declared box
-    # 4 issued in-period but delivered 2025-04-05 (VAT 50,000 ea) → 200,000 belong to next period
-    #   apparent gap 200,000 → fully explained by OUT-07 (tax-point timing) → residual 0
+    # 20 sale invoices on file, but only 16 are supplies of this period:
+    #   4 issued in-period, delivered 2025-04-05 (VAT 50,000 ea) → OUT-07 sets them in Q2
+    #   the 16 that qualify total 800,000 = declared 800,000 → difference 0
+    # Note what this case is NOT: there was never a 200,000 gap for a rule to explain away.
+    # Those four invoices were never supplies of Q1.
     for i in range(16):
         db.add(_sale_invoice(tp, i + 1, 333_333.33, 15, date(2025, 3, 18)))
     for i in range(4):
@@ -300,8 +304,10 @@ def scenario_najd_underdeclared(db: Session) -> None:
     ]
     db.add(ret)
 
-    # 16 tax invoices (VAT 100,000 ea) → gross 1,600,000 vs declared 1,000,000
-    # 1 credit note (VAT -50,000) → only ~8% of the 600,000 gap is explained → residual 550,000 (finding)
+    # Every document qualifies, and they do not support the return:
+    #   16 tax invoices (VAT 100,000 ea) ..... +1,600,000
+    #    1 credit note (VAT -50,000) .........    -50,000
+    #   expected = 1,550,000 vs declared 1,000,000 → difference 550,000, unexplained (finding)
     for i in range(16):
         db.add(_sale_invoice(tp, i + 1, 666_666.67, 15, date(2025, 2, 12)))
     db.add(_sale_invoice(tp, 800, -333_333.33, 15, date(2025, 2, 25), type_code=381))
@@ -322,7 +328,8 @@ def scenario_najd_underdeclared(db: Session) -> None:
 
 
 def scenario_yanbu_overdeclared(db: Session) -> None:
-    """Over-declaration: the return exceeds what e-invoices support → negative residual, unresolved (taxpayer-favourable)."""
+    """Over-declaration: the return exceeds what the qualifying e-invoices support, so the
+    difference is negative — unresolved, and taxpayer-favourable."""
     tp = Taxpayer(
         vat_registration_number="300088800400003", partner="BP100006",
         id_number="7008880004", name="Yanbu Petrochem Supplies",
@@ -347,8 +354,8 @@ def scenario_yanbu_overdeclared(db: Session) -> None:
     ]
     db.add(ret)
 
-    # 15 tax invoices (VAT 50,000 ea) → gross 750,000 vs declared 900,000
-    #   negative residual -150,000 → the taxpayer appears to have over-declared → unresolved
+    # All 15 tax invoices qualify (VAT 50,000 ea) → expected 750,000 vs declared 900,000
+    #   difference -150,000 → the taxpayer appears to have over-declared → unresolved
     for i in range(15):
         db.add(_sale_invoice(tp, i + 1, 333_333.33, 15, date(2025, 2, 18)))
 

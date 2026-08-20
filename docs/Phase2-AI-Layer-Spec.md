@@ -1,5 +1,13 @@
 # E-AUDIT Phase 2 — Unified File-Level Implementation Spec
 
+> **Superseded in part — historical design record.** The placeholder *guard* below is exactly
+> what shipped; the placeholder *vocabulary* has changed. `{{residual}}` and `{{bridge.CODE}}`
+> no longer exist — the tokens are `{{declared}}`, `{{expected}}`, `{{difference}}`,
+> `{{evidence_total}}`, `{{unexplained}}`, `{{materiality}}`, `{{qualifying_count}}`,
+> `{{population_count}}`, `{{step.CODE}}` / `{{step.CODE.count}}` and `{{evidence.CODE}}`.
+> `backend/app/llm/verify.py` is the live list; see **Qualify, then sum** in `CLAUDE.md` for
+> why the bridge tokens went away.
+
 This merges the three sub-designs and resolves every critique item. The **blocking meta-fix (F4)** is decided up front and everything below is written to that single decision:
 
 > **DECISION (F4):** Adopt the **placeholder guard**. Claude emits **no digits at all** — every figure is a token like `{{residual}}` / `{{bridge.COR-01}}`, and the deterministic engine substitutes the real value. This is strictly stronger than the allowed-set/word-parser design: it deletes the decimal-split (F8), unit-restatement, Arabic-separator (F12), label-scrape (F15) and `100%` (F3) attack surfaces outright, because *any* numeric literal in Claude's output is now a violation by definition. We keep the **features/React `NextBestAction` contract**, and standardize the SDK to exactly the blessed shapes: `thinking={"type":"adaptive"}` (no `effort` param anywhere), structured via `client.messages.parse(..., output_config={"format":{json_schema}})`, prose via `client.messages.stream(...)`.

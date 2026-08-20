@@ -103,7 +103,7 @@ def test_compliant_draft_reaches_the_screen_with_engine_figures(live, monkeypatc
 
 
 def test_fabricated_figure_never_reaches_the_screen(live, monkeypatch):
-    bad = "The unexplained residual is SAR 90,000, which exceeds materiality."
+    bad = "SAR 90,000 is unexplained, which exceeds materiality."
     monkeypatch.setattr(svc, "_client", stub_client(prose=[bad, bad]))
     out = svc.llm.narrate(HERO, RULES)
     assert out["source"] == "blocked-unverified" and out["verified"] is False
@@ -112,7 +112,7 @@ def test_fabricated_figure_never_reaches_the_screen(live, monkeypatch):
 
 
 def test_corrective_retry_can_rescue_a_bad_first_draft(live, monkeypatch):
-    monkeypatch.setattr(svc, "_client", stub_client(prose=["Residual is SAR 90,000.", GOOD]))
+    monkeypatch.setattr(svc, "_client", stub_client(prose=["The unexplained amount is SAR 90,000.", GOOD]))
     out = svc.llm.narrate(HERO, RULES)
     assert out["source"] == "claude" and "SAR 75,000" in out["text"]
 
@@ -145,8 +145,8 @@ def test_no_credentials_is_not_an_api_error(monkeypatch):
 
 # ------------------------------------------------------------ next best action
 NBA_OK = {"action_type": "request-explanation",
-          "document_requested": "A written reconciliation of the residual.",
-          "addressed_to": "taxpayer", "rationale": "Only the residual remains.",
+          "document_requested": "A written reconciliation of the difference.",
+          "addressed_to": "taxpayer", "rationale": "Only the unexplained amount remains.",
           "expected_yield": "Confirms or clears {{unexplained}}.", "minimises_contact": False}
 
 
@@ -184,7 +184,7 @@ def test_taxpayer_brief_rejects_any_digit(live, monkeypatch):
 # ------------------------------------------------------------------- report
 def test_report_streams_verified_prose_then_done(live, monkeypatch):
     md = ("## Case summary\nReconstructed {{expected}} against {{declared}}.\n\n"
-          "## Residual & conclusion\nA residual of {{unexplained}} remains; a potential finding.")
+          "## Comparison & conclusion\n{{unexplained}} is unexplained; a potential finding.")
     monkeypatch.setattr(svc, "_client", stub_client(prose=md))
     frames = "".join(svc.llm.stream_report(HERO, RULES))
     assert "SAR 2,075,000" in frames and "{{" not in frames
@@ -192,7 +192,7 @@ def test_report_streams_verified_prose_then_done(live, monkeypatch):
 
 
 def test_report_falls_back_without_leaking_the_bad_draft(live, monkeypatch):
-    bad = "## Case summary\nThe residual is SAR 90,000."
+    bad = "## Case summary\nThe unexplained amount is SAR 90,000."
     monkeypatch.setattr(svc, "_client", stub_client(prose=[bad, bad]))
     frames = "".join(svc.llm.stream_report(HERO, RULES))
     assert "event: fallback" in frames          # tells the UI to clear any partial text

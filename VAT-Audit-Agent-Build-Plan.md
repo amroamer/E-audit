@@ -1,6 +1,12 @@
 # AI VAT Audit Agent — Regenerated Build Plan (PoC)
 ### KPMG × ZATCA | Lead Solution Architect Consolidation — Final
 
+> **Superseded in part — historical planning record.** Where this plan describes a
+> reconstruction that is later adjusted by "explaining" rules (bridge lines, residuals,
+> apparent gaps), the build no longer works that way: rules run *during* aggregation and
+> decide which documents belong in the box and the period, so the expected figure is the sum
+> of what qualified. See **Qualify, then sum** in `CLAUDE.md`.
+
 ---
 
 ## 1. Solution recap & PoC scope boundary

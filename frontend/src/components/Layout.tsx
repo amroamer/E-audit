@@ -42,7 +42,7 @@ export default function Layout({ children }: { children: ReactNode }) {
             </span>
           ))}
         </nav>
-        <div className="side-foot">Phase 0 · Foundation</div>
+        <div className="side-foot">ZATCA VAT Audit Agent</div>
       </aside>
       <main className="main">{children}</main>
     </div>

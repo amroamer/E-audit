@@ -34,28 +34,33 @@ class CaseRecon(Base):
     status: Mapped[str] = mapped_column(String(30), default="draft")
 
 
-class RebuiltBox(Base):
-    __tablename__ = "rebuilt_box"
+class BoxOutcome(Base):
+    """One box: what qualified, what was declared, and the difference between them.
+
+    `expected_*` is the sum of the lines that qualified — not a rebuild that was later
+    adjusted. There is no column for a pre-qualification figure because no such figure
+    exists.
+    """
+    __tablename__ = "box_outcome"
     __table_args__ = {"schema": SCHEMA}
 
     id: Mapped[int] = mapped_column(primary_key=True)
     case_recon_id: Mapped[int] = mapped_column(ForeignKey(f"{SCHEMA}.case_recon.id"))
     box_code: Mapped[str] = mapped_column(String(40))
     direction: Mapped[str] = mapped_column(String(10))
-    rebuilt_base: Mapped[float] = mapped_column(Money, default=0)
-    rebuilt_vat: Mapped[float] = mapped_column(Money, default=0)
+    expected_base: Mapped[float] = mapped_column(Money, default=0)
+    expected_vat: Mapped[float] = mapped_column(Money, default=0)
     declared_vat: Mapped[float] = mapped_column(Money, default=0)
-    gap_vat: Mapped[float] = mapped_column(Money, default=0)
+    difference: Mapped[float] = mapped_column(Money, default=0)   # expected − declared
 
 
 class QualificationStep(Base):
     """One step in the narrowing from population to qualifying set.
 
-    Replaces the old `bridge_line`, and the difference is not cosmetic. A bridge line was a
-    *movement of money* away from a total that was never real. A step records what actually
-    happened: a rule removed N documents from this box, for this reason. `amount` is the tax
-    those documents carry — reported so the auditor can see the size of what was set aside,
-    not because anything was subtracted.
+    A step is not a movement of money. It records what actually happened: a rule kept N
+    documents out of this box, for this reason. `amount` is the tax those documents carry —
+    reported so the auditor can see the size of what was set aside, not because anything was
+    subtracted from a total.
     """
     __tablename__ = "qualification_step"
     __table_args__ = {"schema": SCHEMA}
@@ -71,9 +76,9 @@ class QualificationStep(Base):
     amount: Mapped[float] = mapped_column(Money, default=0)
 
 
-class Residual(Base):
-    """What remains unexplained on a box, and what that means."""
-    __tablename__ = "residual"
+class Unexplained(Base):
+    """What is left on a box once taxpayer evidence is accounted for, and what that means."""
+    __tablename__ = "unexplained"
     __table_args__ = {"schema": SCHEMA}
 
     id: Mapped[int] = mapped_column(primary_key=True)

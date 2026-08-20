@@ -2,6 +2,17 @@
 
 **Purpose.** This rulebook is the canonical catalogue of taxpayer VAT mistakes the agent must catch when investigating a flagged case. Each rule reconstructs the *expected* KSA VAT return from cleared FATOORA e-invoices (aggregating `TAXSUBTOTAL` by tax category × rate × direction × period), plus external feeds where e-invoices cannot reach (customs/Bayan, AP/payment ledgers, counterparty master), compares that reconstruction to the declared boxes, and names the concrete explanation for every residual. Detection is deterministic; AI only reads/narrates free text; a human auditor approves every finding. These rules are the content behind `config.rule_library`, and each maps to a `ROOT_CAUSE_CODE`.
 
+**How the engine realises these rules.** The specifications below are the domain catalogue and
+are unchanged. What changed is *when* an `explanation`-kind rule fires: it runs **during**
+aggregation, not after it. A rule of that kind decides whether a document belongs in this box
+and this period at all — a tax-point straddle (OUT-07) does not subtract from a finished total,
+it means the invoice is a supply of the *next* return and was never in this one. Only the
+documents that qualify are summed, and that sum is the expected figure. Consequently there is
+no pre-qualification total anywhere in the engine, and nothing is "explained away" after the
+fact. Read *residual* in the rule text below as **what remains once the qualifying documents
+have been compared with the declared box and the taxpayer's evidence accounted for** — the
+engine calls that `unexplained`. See **Qualify, then sum** in `CLAUDE.md`.
+
 ---
 
 ## Legend

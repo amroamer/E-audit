@@ -5,7 +5,7 @@ import { NavLink } from "react-router-dom";
 const TABS = [
   { to: "", label: "Dossier", hint: "What ZATCA already holds" },
   { to: "/casework", label: "Casework", hint: "Request, response, gaps" },
-  { to: "/reconciliation", label: "Reconciliation", hint: "Bridge and investigation" },
+  { to: "/reconciliation", label: "Reconciliation", hint: "What qualifies, and what it means" },
 ];
 
 export default function CaseTabs({ id }: { id: string }) {

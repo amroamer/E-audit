@@ -20,29 +20,65 @@ runs the case from there to a drafted conclusion. Five stages
 3. **Request & response** — draft the letter, then compare what arrives against
    what was asked for: missing columns, blank mandatory fields, period coverage,
    totals that do not foot. Draft the follow-up from the gaps alone.
-4. **Substantive review** — reconstruct the expected VAT return from the FATOORA
-   e-invoices, reconcile it against the declared return, explain legitimate
-   differences down to a true **residual**, and let the investigation agents
-   propose root causes for a deterministic adjudicator to settle.
+4. **Substantive review** — decide which FATOORA e-invoices *qualify* for the box
+   and the period, sum them into an **expected** return, compare that against
+   what was **declared**, account for the taxpayer's evidence, and let the
+   investigation agents propose root causes for a deterministic adjudicator to
+   settle whatever is left **unexplained**.
 5. **Closure** — draft the audit report and the taxpayer letter for approval.
 
 Both the **output** (standard-rated sales) and **input** (standard-rated
-purchases) VAT boxes are reconstructed as separate reconciliation bridges.
+purchases) VAT boxes are qualified and compared separately.
 
 The stage machine is **derived, never stored** — every state follows from the
 case's own data — and **no stage advances by itself**. A case the internal
 evidence settles skips stages 2 and 3 entirely and reports that the taxpayer was
 never contacted, which is the product's central claim.
 
+## Qualify, then sum (do not invert this)
+
+> The rules decide **which documents count**. They do not subtract from a total,
+> and they never "explain a gap".
+
+Every e-invoice line is walked through the rule stages *before* anything is
+added up (`pipeline/run.py`). A line either **qualifies** for this box and this
+period, or it does not — and if it does not, exactly one rule is on record as
+the reason. Only the survivors are summed:
+
+```
+Σ qualifying lines        = expected
+expected − declared       = difference
+difference − evidence     = unexplained      (evidence = what the taxpayer showed)
+```
+
+There is deliberately **no pre-qualification total**. A "reconstructed from
+e-invoices" figure taken before the rules run would correspond to nothing real:
+it would have to include documents the rules place in another period and exclude
+documents the rules admit, purely so a waterfall could be drawn from it. A
+clearance-lag invoice was never in the period, so it is not a deduction — it is
+a line in the **funnel** that says why it is not there.
+
+The funnel is therefore a *partition of the population*, not a bridge:
+population → one step per rule that set documents aside (count + amount) →
+qualifying count and amount. `Composition` then says what the qualifying set is
+made of, by document type. `compose()` in `pipeline/run.py` builds both; the UI
+shows the funnel as the hero and the three-way comparison beneath it.
+
 ## The core invariant (do not break this)
 
 > The **deterministic Python core computes every number.** Claude writes
 > **language only** and never introduces a figure.
 
-- The engine (`backend/app/recon_engine.py`) produces all amounts, residuals,
-  and the conclusion (`state`).
-- Claude emits **no digits** — only placeholder tokens like `{{residual}}` or
-  `{{bridge.COR-01}}`, which the engine substitutes with its exact values.
+- The engine (`backend/app/recon_engine.py`) produces every amount and count, and
+  the conclusion (`state`).
+- Claude emits **no digits** — only placeholder tokens, which the engine
+  substitutes with its exact values. The vocabulary is deliberately short and
+  lives in `_SCALAR_KEYS` / `placeholder_values()`: `{{declared}}`,
+  `{{expected}}`, `{{difference}}`, `{{evidence_total}}`, `{{unexplained}}`,
+  `{{materiality}}`, `{{qualifying_count}}`, `{{population_count}}`, plus
+  `{{step.OUT-07}}` / `{{step.OUT-07.count}}` for each funnel step and
+  `{{evidence.CODE}}` for each item of taxpayer evidence. A rule that sets no
+  documents aside has **no token at all** — there is no amount for it to name.
 - Every drafted sentence is checked by `verify_claims` / `verify_conclusion`
   (`backend/app/llm/verify.py`) **before display**; on failure there is a
   corrective retry, then an honest deterministic fallback with a status badge.
@@ -88,7 +124,7 @@ backend/app/
                        #   completeness.py requested vs received, deterministically
                        #   service.py      drives the rounds; recomputes gaps each pass
   pipeline/            # predicates.py (Python ⇄ SQL algebra) + rules.py + run.py
-  recon_engine.py      # deterministic reconstruction + bridge (output & input VAT)
+  recon_engine.py      # qualify -> expected -> compare with declared (output & input VAT)
   rule_taxonomy.py     # explanation/mistake/risk + precedence stage + difference reason codes
   risk_indicators.py   # the risk-engine vocabulary + which internal source to consult first
   scope.py             # what this PoC reconciles, and what it deliberately leaves out
@@ -101,7 +137,7 @@ backend/app/
   seed/                # scenarios.py + dossier_seed.py + corpus.py + casework_seed.py
 frontend/src/
   pages/               # Overview, Dossier, Casework, Reconciliation, Rules
-  components/          # lifecycle rail, case tabs, precedent, AI panels, bridge, letters
+  components/          # lifecycle rail, case tabs, precedent, AI panels, funnel, letters
   api.ts, ai/          # typed API + SSE streaming helpers
 docs/                  # VAT Mistakes Rulebook (66 rules) + rendered page
 portal.html            # standalone no-backend build of the workbench (see below)
@@ -116,11 +152,12 @@ with the lifecycle rail on each showing where the case is and whose move it is.
 The rulebook's 66 entries are three different kinds of object, and the engine
 depends on the distinction:
 
-- **explanation** — a legitimate reason the return differs from the e-invoices
-  (credit notes, tax-point timing). Becomes a **bridge line**; reduces the residual.
+- **explanation** — a legitimate reason a document does not belong in this box or
+  this period (credit notes, tax-point timing). Changes **which documents
+  qualify**, and so changes the expected figure itself.
 - **mistake** — a taxpayer error. Becomes a **finding**.
 - **risk** — a behavioural or data-quality signal. Feeds **prioritisation only**,
-  and must never draw a bridge line.
+  and must never change which documents qualify.
 
 Each rule also carries a `stage` (its place in the population → identity → status
 → tax-point → category → adjustment → aggregation → timing → materiality → risk
@@ -144,8 +181,9 @@ the predicate algebra exists to prevent. `test_pipeline.py` asserts the two agre
 
 `portal.html` is a single self-contained build of the workbench — no backend, no
 database, no build step. It ports `theme.css` verbatim and re-implements the
-deterministic core in JavaScript over the seeded demo data, so the bridge, the
-rulebook toggles and the taxpayer-response loop still recompute in the browser.
+deterministic core in JavaScript over the seeded demo data, so the qualification
+funnel, the rulebook toggles and the taxpayer-response loop still recompute in
+the browser — toggling a rule re-runs `qualify()` and moves the expected figure.
 Its AI panels show the same deterministic fallbacks the app renders with no API
 key.
 
@@ -159,7 +197,7 @@ should stay explicit.
 
 If you change the engine, the seed data or the rule taxonomy, regenerate it — the
 JS port is validated field-by-field against the Python engine's output (currently
-7,432 comparisons, 0 failures).
+12,639 comparisons, 0 failures).
 
 ## Running locally
 
@@ -211,11 +249,14 @@ Open http://localhost:5174.
   brands.
 - Frontend build check: `npm run build` (runs `tsc --noEmit` + Vite build).
 - Backend syntax check: `python -m compileall -q app`.
-- Guard tests: `pytest backend/tests` (133 at last count).
+- Guard tests: `pytest backend/tests` (134 at last count).
 - When editing the engine, remember: **the numbers live in Python, the words
   live in Claude.** If a change would have Claude produce a figure, route the
   figure through a placeholder instead — or, for outbound letters, put it in the
   facts block so `verify_correspondence` will accept it being repeated.
+- **Qualify, then sum.** If a change would introduce a total taken before the
+  rules run, or word a rule as subtracting from one, it is the wrong shape — the
+  rule decides which documents are in the box, and the sum follows.
 - **Deterministic first, model second.** Anything checkable is a check: column
   presence, blank fields, period coverage, whether a total adds up. Only
   genuinely judgement-shaped questions go to a model, and they are checked after.

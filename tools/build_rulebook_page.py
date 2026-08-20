@@ -4,11 +4,13 @@ no <html>/<head>/<body> wrappers; <title>+<style> at top, content, <script> at e
 """
 import re
 import html as _html
+from pathlib import Path
+
 import markdown
 
-ROOT = r"C:\projects\E-AUDIT"
-SRC = ROOT + r"\docs\VAT-Mistakes-Rulebook.md"
-OUT = ROOT + r"\docs\rulebook-page.html"
+ROOT = Path(__file__).resolve().parent.parent
+SRC = ROOT / "docs" / "VAT-Mistakes-Rulebook.md"
+OUT = ROOT / "docs" / "rulebook-page.html"
 
 md_text = open(SRC, encoding="utf-8").read()
 

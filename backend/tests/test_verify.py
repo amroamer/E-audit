@@ -32,12 +32,12 @@ def test_placeholder_prose_passes():
 
 
 def test_fabricated_literal_rejected():
-    r = verify_claims("...leaving an unexplained residual of SAR 90,000.", HERO)
+    r = verify_claims("...leaving SAR 90,000 unexplained.", HERO)
     assert r["ok"] is False and any("90,000" in v for v in r["violations"])
 
 
 def test_true_figure_as_literal_still_rejected():
-    r = verify_claims("The residual is SAR 75,000.", HERO)
+    r = verify_claims("The unexplained amount is SAR 75,000.", HERO)
     assert r["ok"] is False
 
 
@@ -47,12 +47,12 @@ def test_unknown_placeholder_rejected():
 
 
 def test_spelled_out_magnitude_rejected():
-    r = verify_claims("The residual is seventy-five thousand riyals.", HERO)
+    r = verify_claims("The unexplained amount is seventy-five thousand riyals.", HERO)
     assert r["ok"] is False
 
 
 def test_vague_ratio_rejected():
-    r = verify_claims("Rules explain about a third of the difference.", HERO)
+    r = verify_claims("About a third of the documents fail to qualify.", HERO)
     assert r["ok"] is False
 
 

@@ -29,12 +29,12 @@ IN_SCOPE: tuple[dict[str, str], ...] = (
     {"item": "One tax period, one return version",
      "detail": "2025 Q1, the return currently on file. No amendment history, no rolling "
                "re-reconciliation as later documents arrive."},
-    {"item": "Four wired explanations",
+    {"item": "Four wired qualification rules",
      "detail": "Credit notes on both boxes (COR-01, COR-02) and tax-point straddle timing on "
                "both boxes (OUT-07, INP-09), plus auditor-confirmed taxpayer evidence."},
     {"item": "Materiality and prioritisation",
-     "detail": "Residual banded against max(SAR 1,000, 0.5% of the box); cases ranked by "
-               "exposure, deadline, history and quick-win."},
+     "detail": "What is left unexplained banded against max(SAR 1,000, 0.5% of the box); cases "
+               "ranked by exposure, deadline, history and quick-win."},
 )
 
 OUT_OF_SCOPE: tuple[dict[str, str], ...] = (

@@ -50,7 +50,7 @@ export interface RuleRow {
   /** which class of difference it describes (T/S/D/A/R taxonomy) */
   reason_code: string;
   reason_label: string;
-  /** true when the live reconciliation engine can draw a bridge line for it */
+  /** true when the live engine acts on it — toggling it changes which documents qualify */
   wired: boolean;
 }
 

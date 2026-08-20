@@ -178,11 +178,15 @@ function DetailBody({ detail, amount }: { detail?: Detail; amount?: number }) {
       </>
     );
 
-  if (detail.type === "residual")
+  if (detail.type === "difference")
     return (
       <>
         {kv([
-          ["Unexplained residual", <b>{sar(detail.amount)}</b>],
+          ["Expected (qualifying documents)", sar(detail.expected)],
+          ["Declared on the return", sar(detail.declared)],
+          ["Difference", <b>{sar(detail.difference)}</b>],
+          ["Accounted for by evidence", sar(detail.evidence_total)],
+          ["Left unexplained", <b>{sar(detail.unexplained)}</b>],
           ["Materiality threshold", sar(detail.materiality)],
           ["Band", detail.band],
           ["Verdict", STATE_LABEL[detail.state] || detail.state],
@@ -203,7 +207,7 @@ function DetailBody({ detail, amount }: { detail?: Detail; amount?: number }) {
       </>
     );
 
-  // reconstruction | rule → note (+ rule card) + invoice evidence
+  // population | qualified | rule | structural | composition → note (+ rule card) + the documents
   return (
     <>
       {detail.type === "rule" && detail.rule && (
@@ -472,7 +476,7 @@ export default function Reconciliation() {
         <Funnel d={d} open={open} />
         <Compare d={d} open={open} />
         <Evidence d={d} open={open} />
-        <div className="bridge-foot">
+        <div className="panel-note">
           <span className="ct">∑ computed</span> The rules decide which documents belong in this box and this period;
           the qualifying ones are then summed. Nothing is totalled and later adjusted, so there is no figure here
           &ldquo;before&rdquo; the rules. Click any line for the documents behind it.
@@ -493,7 +497,7 @@ export default function Reconciliation() {
           <Funnel d={d.purchase} open={open} />
           <Compare d={d.purchase} open={open} />
           <Evidence d={d.purchase} open={open} />
-          <div className="bridge-foot">
+          <div className="panel-note">
             <span className="ct">∑ computed</span> The same order on the purchases side. Here an over-claim — declaring
             more input VAT than the qualifying invoices support — is the revenue risk, so a negative difference is the
             one to look at.
