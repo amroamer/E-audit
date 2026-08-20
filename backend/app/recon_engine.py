@@ -118,15 +118,45 @@ def _line_records(invs: list[Invoice], period_from, period_to, sector: str = "")
     return rows
 
 
+def _doc_row(row: dict, tax: float) -> dict:
+    """A line from an uploaded listing, in the shape the drill-down tables render.
+
+    The document and row number travel with it so the auditor can open the spreadsheet at the
+    line in question — the equivalent of an e-invoice UUID, and the only citation a listing
+    can offer.
+    """
+    return {
+        "uuid": row.get("invoice_uuid", ""),
+        "type_code": row.get("type_code"),
+        "type": TYPE_LABEL.get(row.get("type_code"), str(row.get("type_code"))),
+        "issue_date": row["issue_date"].isoformat() if row.get("issue_date") else None,
+        "delivery_date": row["delivery_date"].isoformat() if row.get("delivery_date") else None,
+        "status": row.get("status", "reported"),
+        "base": round(float(row.get("taxable_amount") or 0.0), 2),
+        "tax_amount": round(tax, 2),
+        "document": row.get("document", ""),
+        "row_number": row.get("row_number"),
+    }
+
+
 def _line_invoice_rows(lines) -> list[dict]:
-    """Collapse qualified lines back to invoice rows for the drill-down tables."""
+    """Collapse qualified lines back to document rows for the drill-down tables.
+
+    Handles both populations: e-invoice lines carry the ORM object, uploaded lines carry their
+    own provenance. Keying on the identifier rather than the object is what lets one function
+    serve both.
+    """
     seen: dict[str, dict] = {}
     for line in lines:
-        inv = line.row["invoice"]
-        if inv.uuid in seen:
-            seen[inv.uuid]["tax_amount"] = round(seen[inv.uuid]["tax_amount"] + line.tax_amount, 2)
+        inv = line.row.get("invoice")
+        if inv is not None:
+            key, built = inv.uuid, lambda: _inv_row(inv, line.tax_amount)
         else:
-            seen[inv.uuid] = _inv_row(inv, line.tax_amount)
+            key, built = line.row.get("invoice_uuid", ""), lambda: _doc_row(line.row, line.tax_amount)
+        if key in seen:
+            seen[key]["tax_amount"] = round(seen[key]["tax_amount"] + line.tax_amount, 2)
+        else:
+            seen[key] = built()
     return list(seen.values())
 
 
@@ -134,7 +164,8 @@ def _reconstruct(db: Session, *, invs: list[Invoice], declared: float, direction
                  box_code: str, box_label: str, box_title: str, period_from, period_to,
                  responses: list[TaxpayerResponse] | None = None,
                  ret: VatReturn | None = None, dbox=None, sector: str = "",
-                 invoices_considered: int, finding_sign: int) -> dict:
+                 invoices_considered: int, finding_sign: int,
+                 rows: list[dict] | None = None, source_label: str = "") -> dict:
     """Qualify, sum, compare. Shared by the output and input boxes.
 
     The order is the whole point and there is no step before it. Rules decide which lines
@@ -152,21 +183,24 @@ def _reconstruct(db: Session, *, invs: list[Invoice], declared: float, direction
     -1 where an over-claim is (input VAT).
     """
     enabled = _enabled_codes(db)
-    rows = _line_records(invs, period_from, period_to, sector)
+    # `rows` prebuilt = the taxpayer's uploaded listing is the population under review.
+    # Falling back to the e-invoice feed keeps the demo cases that have no upload working.
+    if rows is None:
+        rows = _line_records(invs, period_from, period_to, sector)
     lines = qualify(rows, enabled, direction)
     comp = compose(lines, enabled, direction)
 
     # ---- how the population narrowed, step by step -----------------------------------
     funnel = [{
         "seq": 0, "kind": "population", "rule": None, "stage": "",
-        "label": ("Sale e-invoices on file" if direction == "sale"
-                  else "Purchase e-invoices on file"),
+        "label": source_label or ("Sale e-invoices on file" if direction == "sale"
+                                  else "Purchase e-invoices on file"),
         "count": comp.population, "amount": round(sum(l.tax_amount for l in lines), 2),
         "detail": {
             "type": "population",
-            "note": ("Every e-invoice line held for this taxpayer in this direction, before "
-                     "any rule is applied. It is a starting point, not a figure with meaning "
-                     "— the rules below decide which of these lines belong in this box."),
+            "note": ("Every line in the population under review, before any rule is applied. "
+                     "It is a starting point, not a figure with meaning — the rules below "
+                     "decide which of these lines belong in this box."),
             "count": comp.population,
             "invoices": _line_invoice_rows(list(lines)),
         },
@@ -320,7 +354,56 @@ def _reconstruct(db: Session, *, invs: list[Invoice], declared: float, direction
     }
 
 
-def _reconstruct_input(db: Session, tp, ret: VatReturn | None, period_from, period_to) -> dict:
+def _population(db: Session, case_id: str, *, direction: str, period_from, period_to,
+                sector: str) -> tuple[list[dict] | None, str, str]:
+    """The lines under review for a direction, and where they came from.
+
+    Now that planning is out of scope the taxpayer's uploaded listing IS the population: it is
+    the evidence the case is worked from. Returning None falls the engine back to the e-invoice
+    feed, which is what the demo cases with no upload still use.
+
+    The label travels with the rows because the funnel's first line must say what it is counting.
+    An auditor reading "27 sale e-invoices on file" when the figures actually came from a
+    spreadsheet they uploaded would be looking at the wrong provenance entirely.
+    """
+    from .requests import service as req_service
+    from .pipeline import source as line_source
+
+    docs = [
+        {"filename": d.filename,
+         "columns": (d.content or {}).get("columns", []),
+         "rows": (d.content or {}).get("rows", [])}
+        for d in req_service.documents(db, case_id)
+    ]
+    rows, doc = line_source.document_rows(docs, direction=direction, period_from=period_from,
+                                          period_to=period_to, sector=sector)
+    if doc is None or not rows:
+        return None, "", ""
+    noun = "Sale" if direction == "sale" else "Purchase"
+    return rows, f"{noun} lines in {doc['filename']}", doc["filename"]
+
+
+def _blocking_gaps(db: Session, case_id: str) -> list[str]:
+    """Outstanding defects in the very documents the expected figure was built from.
+
+    This matters more than it looks. If the listing is missing a column, or covers two months
+    of a three-month period, then a total taken from it is a **floor**, not the expected
+    return — and a verdict letter resting on it would state as the Authority's position a
+    figure derived from evidence the Authority has already said is incomplete. The number is
+    still worth computing and showing; it must not be presented as settled.
+    """
+    from .models import GapFinding
+
+    return [
+        f"{g.item_label or 'Response'}: {g.detail}"
+        for g in db.scalars(
+            select(GapFinding).where(GapFinding.case_id == case_id,
+                                     GapFinding.severity == "blocking")).all()
+    ]
+
+
+def _reconstruct_input(db: Session, case_id: str, tp, ret: VatReturn | None,
+                       period_from, period_to) -> dict:
     """Input VAT (standard-rated purchases) — the mirror of the output box.
 
     Here an *over-claim* (declared input exceeding what the qualified purchase e-invoices
@@ -332,12 +415,17 @@ def _reconstruct_input(db: Session, tp, ret: VatReturn | None, period_from, peri
         select(Invoice).where(Invoice.taxpayer_id == tp.id, Invoice.direction == "purchase")
     ).all()
     considered = len([i for i in invs if i.status_code in ("cleared", "reported")])
+    rows, label, _ = _population(db, case_id, direction="purchase", period_from=period_from,
+                                 period_to=period_to, sector=tp.ind_sector)
     return _reconstruct(
-        db, invs=list(invs), declared=declared, direction="purchase",
+        db, invs=list(invs), rows=rows, source_label=label,
+        declared=declared, direction="purchase",
         box_code=BOX_PURCHASE, box_label="Standard-rated purchases",
         box_title="Standard-rated purchases (input VAT)",
         period_from=period_from, period_to=period_to, ret=ret, dbox=pbox,
-        sector=tp.ind_sector, invoices_considered=considered, finding_sign=-1,
+        sector=tp.ind_sector,
+        invoices_considered=len(rows) if rows else considered,
+        finding_sign=-1,
     )
 
 
@@ -365,14 +453,30 @@ def reconcile_case(db: Session, case_id: str, *, persist: bool = True) -> dict:
         .order_by(TaxpayerResponse.seq)
     ).all()
 
+    sale_rows, sale_label, sale_doc = _population(
+        db, case_id, direction="sale", period_from=case.period_from,
+        period_to=case.period_to, sector=tp.ind_sector)
     result = _reconstruct(
-        db, invs=list(invs), declared=declared, direction="sale",
+        db, invs=list(invs), rows=sale_rows, source_label=sale_label,
+        declared=declared, direction="sale",
         box_code=BOX_SALES, box_label="Standard-rated sales",
         box_title="Standard-rated sales VAT",
         period_from=case.period_from, period_to=case.period_to,
         responses=list(responses), ret=ret, dbox=dbox, sector=tp.ind_sector,
-        invoices_considered=len(invs), finding_sign=1,
+        invoices_considered=len(sale_rows) if sale_rows else len(invs), finding_sign=1,
     )
+    # Which population the figures came from. The auditor must be able to see this: the same
+    # case reads very differently depending on whether "expected" was built from the Authority's
+    # e-invoice feed or from the spreadsheet the taxpayer sent.
+    result["population_source"] = "document" if sale_rows else "e-invoice"
+    result["population_document"] = sale_doc
+    blocking = _blocking_gaps(db, case_id) if sale_rows else []
+    result["population_complete"] = not blocking
+    result["population_caveat"] = (
+        f"This figure was built from {sale_doc}, which does not yet meet the request "
+        f"({len(blocking)} outstanding point(s)). Treat it as a floor rather than a settled "
+        f"expected return until the response is complete." if blocking else "")
+    result["population_gaps"] = blocking[:6]
     unexplained, state = result["unexplained"], result["state"]
     band, difference = result["band"], result["difference"]
 
@@ -417,7 +521,7 @@ def reconcile_case(db: Session, case_id: str, *, persist: bool = True) -> dict:
 
     # case-level view across BOTH boxes: an input over-claim is a finding too, so the case's
     # exposure and headline state must combine output + input (not just the output box)
-    purchase = _reconstruct_input(db, tp, ret, case.period_from, case.period_to)
+    purchase = _reconstruct_input(db, case_id, tp, ret, case.period_from, case.period_to)
     _order = {"potential-finding": 3, "unresolved": 2, "supported": 1}
     out_finding = unexplained if state == "potential-finding" else 0.0
     in_finding = abs(purchase["unexplained"]) if purchase["state"] == "potential-finding" else 0.0

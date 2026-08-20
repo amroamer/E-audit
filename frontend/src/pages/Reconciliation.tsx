@@ -62,6 +62,16 @@ interface BoxResult {
   counted_lines: number;
   evidence_invoices: Detail[];
 }
+/** Where the figures came from. The same case reads very differently depending on whether
+ *  "expected" was built from the Authority's e-invoice feed or from the taxpayer's own
+ *  spreadsheet, so the provenance is stated rather than assumed. */
+interface Provenance {
+  population_source?: "document" | "e-invoice";
+  population_document?: string;
+  population_complete?: boolean;
+  population_caveat?: string;
+  population_gaps?: string[];
+}
 interface Combined {
   total_exposure: number;
   state: string;
@@ -71,7 +81,7 @@ interface Combined {
   input_unexplained: number;
   finding_boxes: string[];
 }
-interface Recon extends BoxResult {
+interface Recon extends BoxResult, Provenance {
   case_id: string;
   taxpayer: string;
   purchase?: BoxResult;
@@ -475,6 +485,14 @@ export default function Reconciliation() {
             {d.invoices_considered} e-invoices on file ›
           </button>
         </div>
+        {d.population_source === "document" && (
+          <div className={"provenance" + (d.population_complete ? "" : " warn")}>
+            <span className="ct">source</span>
+            Built from <b>{d.population_document}</b> — the listing the taxpayer supplied, not
+            the Authority&rsquo;s e-invoice feed.
+            {!d.population_complete && <div className="prov-caveat">{d.population_caveat}</div>}
+          </div>
+        )}
         <Funnel d={d} open={open} />
         <Compare d={d} open={open} />
         <Evidence d={d} open={open} />
