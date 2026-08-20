@@ -15,7 +15,7 @@ from .models import AuditCase, VatReturn
 from .recon_engine import reconcile_case
 
 WEIGHTS = {"exposure": 0.40, "deadline": 0.30, "history": 0.20, "quickwin": 0.10}
-EXPOSURE_CEILING = 100_000.0   # SAR residual that scores a full 1.0 on exposure
+EXPOSURE_CEILING = 100_000.0   # SAR at stake that scores a full 1.0 on exposure
 SLA_WINDOW = 90                # days; urgency ramps across this window
 
 
@@ -29,12 +29,18 @@ def score_case(db: Session, case: AuditCase) -> dict:
     try:
         recon = reconcile_case(db, case.case_id, persist=False)
         combined = recon.get("combined") or {}
-        residual = float(combined.get("priority_exposure", abs(float(recon["residual"]))))
-        explained = float(recon["explained_pct"] or 0.0)
+        at_stake = float(combined.get("priority_exposure", abs(float(recon["unexplained"]))))
+        # How near the case is to settling. Rules do not "explain" anything — they decide what
+        # qualifies — so the only thing that closes a difference after the fact is taxpayer
+        # evidence already on file. A case where most of the difference is accounted for is
+        # the cheap one to finish.
+        difference = abs(float(recon["difference"]))
+        accounted = float(recon["evidence_total"])
+        settled = 1.0 if difference <= 0.005 else min(accounted / difference, 1.0)
     except Exception:
-        residual, explained = 0.0, 0.0
-    exposure = min(residual / EXPOSURE_CEILING, 1.0)
-    quickwin = explained                                   # more explained → less effort left
+        at_stake, settled = 0.0, 0.0
+    exposure = min(at_stake / EXPOSURE_CEILING, 1.0)
+    quickwin = settled                                     # less left to do → quicker win
 
     # deadline/SLA — urgency rises as the due date approaches (and past it)
     days = None
@@ -65,11 +71,11 @@ def score_case(db: Session, case: AuditCase) -> dict:
     contrib = {k: WEIGHTS[k] * parts[k] for k in WEIGHTS}
     top = max(contrib, key=contrib.get)
     drivers = {
-        "exposure": f"SAR {int(residual):,} at stake",
+        "exposure": f"SAR {int(at_stake):,} at stake",
         "deadline": ("past SLA deadline" if days is not None and days < 0
                      else (f"due in {days} days" if days is not None else "no deadline")),
         "history": (f"{int(prior_findings)} prior finding(s)" if prior_findings else "clean history"),
-        "quickwin": f"{round(explained * 100)}% already explained",
+        "quickwin": f"{round(settled * 100)}% already accounted for",
     }
 
     return {
@@ -80,7 +86,7 @@ def score_case(db: Session, case: AuditCase) -> dict:
             "exposure": round(exposure, 3), "deadline": round(deadline, 3),
             "history": round(history, 3), "quickwin": round(quickwin, 3),
         },
-        "residual": round(residual, 2),
+        "at_stake": round(at_stake, 2),
         "deadline_days": days,
         "prior_findings": int(prior_findings),
     }

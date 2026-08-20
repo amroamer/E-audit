@@ -21,15 +21,17 @@ PERIOD_FROM, PERIOD_TO = date(2025, 1, 1), date(2025, 3, 31)
 ALL_ON = {"COR-01", "COR-02", "OUT-07", "OUT-11", "INP-09"}
 
 
-def recon(*, declared=52_000.0, expected=520_000.0, residual=468_000.0, materiality=1_000.0,
-          state="potential-finding", input_residual=0.0):
+def recon(*, declared=52_000.0, expected=520_000.0, unexplained=468_000.0, materiality=1_000.0,
+          state="potential-finding", input_unexplained=0.0):
     box = {"declared": declared, "expected_vat": expected, "expected_base": 3_466_666.67,
-           "residual": residual, "materiality": materiality, "state": state,
+           "difference": round(expected - declared, 2), "evidence_total": 0.0, "evidence": [],
+           "unexplained": unexplained, "materiality": materiality, "state": state,
+           "funnel": [], "composition": [],
            "deferred_out": {"count": 0, "amount": 0.0}, "evidence_invoices": []}
     return {**box, "case_id": "CASE-TEST",
             "purchase": {**box, "declared": 45_000.0, "expected_vat": 45_000.0,
-                         "residual": input_residual,
-                         "state": "potential-finding" if input_residual else "supported"}}
+                         "difference": 0.0, "unexplained": input_unexplained,
+                         "state": "potential-finding" if input_unexplained else "supported"}}
 
 
 def line(tax, *, type_code=388, delivery=date(2025, 1, 10), category="S", rate=15,
@@ -139,7 +141,7 @@ def test_our_own_error_never_becomes_the_explanation():
 
 def test_a_supported_case_is_not_waved_through_when_our_arithmetic_is_wrong():
     """A case that looks clean *because* a figure was transcribed wrongly is the dangerous one."""
-    clean = dict(residual=0.0, state="supported")
+    clean = dict(unexplained=0.0, state="supported")
     quiet = investigate(recon(**clean))
     assert quiet.rounds == 1                       # nothing to investigate, as before
 
@@ -151,7 +153,7 @@ def test_a_supported_case_is_not_waved_through_when_our_arithmetic_is_wrong():
 
 def test_a_correct_transcription_leaves_a_supported_case_alone():
     ok = [{"seq": 1, "label": "Sales ledger", "amount": 1_000.0, "doc_name": DOC["filename"]}]
-    inv = investigate(recon(residual=0.0, state="supported"), documents=[DOC], recorded=ok)
+    inv = investigate(recon(unexplained=0.0, state="supported"), documents=[DOC], recorded=ok)
     assert not any(a.status == "confirmed" and a.hypothesis_id.startswith("RC-")
                    for a in inv.adjudications)
 
@@ -165,7 +167,9 @@ def test_a_government_supply_awaiting_approval_leaves_the_period():
     rows += [line(60_000, approval=date(2025, 5, 12), **GOV) for _ in range(6)]
     comp = compose(qualify(rows, ALL_ON, "sale"), ALL_ON, "sale")
     assert comp.expected_vat == 1_500_000.0
-    assert any(r["rule"] == "OUT-11" and r["amount"] == -360_000.0 for r in comp.rows)
+    step = next(g for g in comp.funnel if g["rule"] == "OUT-11")
+    assert step["count"] == 6 and step["amount"] == 360_000.0
+    assert step["verdict"] == "deferred-next"
 
 
 def test_the_same_delay_on_a_commercial_customer_is_not_that_rule():
@@ -174,7 +178,7 @@ def test_the_same_delay_on_a_commercial_customer_is_not_that_rule():
     rows = [line(60_000, approval=date(2025, 5, 12)) for _ in range(6)]
     comp = compose(qualify(rows, ALL_ON, "sale"), ALL_ON, "sale")
     assert comp.expected_vat == 360_000.0
-    assert not any(r["rule"] == "OUT-11" for r in comp.rows)
+    assert not any(g["rule"] == "OUT-11" for g in comp.funnel)
 
 
 def test_an_approved_government_supply_stays_in_the_period():

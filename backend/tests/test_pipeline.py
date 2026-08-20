@@ -35,20 +35,37 @@ def hero_rows():
 
 
 # ------------------------------------------------------- the arithmetic identity
-def test_base_plus_rows_equals_expected():
-    """The bridge cannot claim a movement the lines do not support."""
+def test_every_line_is_either_counted_or_accounted_for():
+    """The funnel is a partition of the population, not a story told over one.
+
+    This is the property that replaces the old waterfall identity, and it is stronger: a
+    document either qualifies or appears in exactly one funnel step explaining why it does
+    not. Nothing can be silently dropped, and nothing can be counted twice.
+    """
     lines = qualify(hero_rows(), ALL_ON, "sale")
     comp = compose(lines, ALL_ON, "sale")
-    assert round(comp.base_vat + sum(r["amount"] for r in comp.rows), 2) == comp.expected_vat
+    assert comp.counted + sum(g["count"] for g in comp.funnel) == comp.population
+    assert len({id(l) for g in comp.funnel for l in g["lines"]}) == \
+        sum(g["count"] for g in comp.funnel)
 
 
-def test_expected_return_is_reached_in_one_pass():
+def test_the_expected_figure_is_the_sum_of_what_qualified():
+    """No baseline, no adjustments — the total is the qualifying lines, added up."""
     lines = qualify(hero_rows(), ALL_ON, "sale")
     comp = compose(lines, ALL_ON, "sale")
-    assert comp.base_vat == 2_480_000.0          # the 22 tax invoices
-    assert comp.expected_vat == 2_075_000.0      # after netting notes and deferring the straddle
+    assert comp.expected_vat == round(sum(l.tax_amount for l in comp.counted_lines), 2)
+    assert comp.expected_vat == 2_075_000.0
     # the difference against a declared 2,000,000 is 75,000 immediately — no 480,000 artefact
     assert round(comp.expected_vat - 2_000_000, 2) == 75_000.0
+
+
+def test_the_composition_adds_up_to_the_expected_figure():
+    lines = qualify(hero_rows(), ALL_ON, "sale")
+    comp = compose(lines, ALL_ON, "sale")
+    assert round(sum(c["amount"] for c in comp.composition), 2) == comp.expected_vat
+    # credit notes are part of the qualifying set, not a deduction from a larger one
+    notes = next(c for c in comp.composition if c["type_code"] == 381)
+    assert notes["amount"] < 0
 
 
 # --------------------------------------------------- properties of the pipeline

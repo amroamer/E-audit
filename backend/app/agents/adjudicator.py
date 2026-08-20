@@ -58,17 +58,17 @@ def adjudicate(h: Hypothesis, ctx: CaseContext) -> Adjudication:
 def _decimal_shift(h: Hypothesis, ctx: CaseContext) -> Adjudication:
     box = ctx.box(h.test.box)
     declared, expected = box["declared"], box["expected_vat"]
-    residual = box["residual"]
+    unexplained = box["unexplained"]
     for factor in (10, 100, 0.1, 0.01):
         if declared and _close(declared * factor, expected):
             return Adjudication(
-                hypothesis_id=h.id, status="confirmed", amount=round(residual, 2),
+                hypothesis_id=h.id, status="confirmed", amount=round(unexplained, 2),
                 detail={"declared": declared, "factor": factor, "expected": expected,
                         "product": round(declared * factor, 2)},
                 explanation=(f"Declared SAR {declared:,.0f} x {factor:g} = SAR "
                              f"{declared * factor:,.0f}, which equals the expected return of "
                              f"SAR {expected:,.0f} exactly. The difference of SAR "
-                             f"{residual:,.0f} is consistent with a misplaced decimal point "
+                             f"{unexplained:,.0f} is consistent with a misplaced decimal point "
                              f"in the declared figure, not with unreported supplies."))
     return Adjudication(
         hypothesis_id=h.id, status="refuted", detail={"declared": declared, "expected": expected},
@@ -82,7 +82,7 @@ def _digit_transposition(h: Hypothesis, ctx: CaseContext) -> Adjudication:
     same_digits = declared and expected and _digits(declared) == _digits(expected)
     if same_digits and not _close(declared, expected):
         return Adjudication(
-            hypothesis_id=h.id, status="confirmed", amount=round(box["residual"], 2),
+            hypothesis_id=h.id, status="confirmed", amount=round(box["unexplained"], 2),
             detail={"declared": declared, "expected": expected},
             explanation=(f"The declared SAR {declared:,.0f} and the expected SAR "
                          f"{expected:,.0f} use the same digits in a different order — the "
@@ -94,14 +94,14 @@ def _digit_transposition(h: Hypothesis, ctx: CaseContext) -> Adjudication:
 
 def _single_document(h: Hypothesis, ctx: CaseContext) -> Adjudication:
     box = ctx.box(h.test.box)
-    residual = box["residual"]
+    unexplained = box["unexplained"]
     for inv in box.get("evidence_invoices", []):
-        if _close(abs(float(inv["tax_amount"])), abs(residual)) and abs(residual) > 0:
+        if _close(abs(float(inv["tax_amount"])), abs(unexplained)) and abs(unexplained) > 0:
             return Adjudication(
-                hypothesis_id=h.id, status="confirmed", amount=round(residual, 2),
+                hypothesis_id=h.id, status="confirmed", amount=round(unexplained, 2),
                 detail={"uuid": inv["uuid"], "tax_amount": inv["tax_amount"],
                         "issue_date": inv["issue_date"]},
-                explanation=(f"The difference of SAR {abs(residual):,.0f} equals exactly one "
+                explanation=(f"The difference of SAR {abs(unexplained):,.0f} equals exactly one "
                              f"document, {inv['uuid']} issued {inv['issue_date']}. A single "
                              f"omitted or duplicated invoice explains it."))
     return Adjudication(hypothesis_id=h.id, status="refuted",
@@ -109,29 +109,29 @@ def _single_document(h: Hypothesis, ctx: CaseContext) -> Adjudication:
 
 
 def _paired_offset(h: Hypothesis, ctx: CaseContext) -> Adjudication:
-    out_r = ctx.recon["residual"]
-    in_r = ctx.recon["purchase"]["residual"]
+    out_r = ctx.recon["unexplained"]
+    in_r = ctx.recon["purchase"]["unexplained"]
     if abs(out_r) > TOLERANCE and _close(out_r, -in_r):
         return Adjudication(
             hypothesis_id=h.id, status="confirmed", amount=round(abs(out_r), 2),
-            detail={"output_residual": out_r, "input_residual": in_r},
+            detail={"output_unexplained": out_r, "input_unexplained": in_r},
             explanation=(f"The output box is out by SAR {out_r:,.0f} and the input box by SAR "
                          f"{in_r:,.0f} — equal and opposite. That is the signature of a "
                          f"misposting between the two boxes, not of a revenue loss."))
     return Adjudication(hypothesis_id=h.id, status="refuted",
-                        detail={"output_residual": out_r, "input_residual": in_r},
+                        detail={"output_unexplained": out_r, "input_unexplained": in_r},
                         explanation="The two boxes' differences are not equal and opposite.")
 
 
 def _period_shift(h: Hypothesis, ctx: CaseContext) -> Adjudication:
     box = ctx.box(h.test.box)
     deferred = box.get("deferred_out", {})
-    amount, residual = float(deferred.get("amount", 0)), box["residual"]
-    if amount and _close(amount, residual):
+    amount, unexplained = float(deferred.get("amount", 0)), box["unexplained"]
+    if amount and _close(amount, unexplained):
         return Adjudication(
-            hypothesis_id=h.id, status="confirmed", amount=round(residual, 2),
+            hypothesis_id=h.id, status="confirmed", amount=round(unexplained, 2),
             detail=dict(deferred),
-            explanation=(f"The difference of SAR {residual:,.0f} equals the SAR {amount:,.0f} of "
+            explanation=(f"The difference of SAR {unexplained:,.0f} equals the SAR {amount:,.0f} of "
                          f"supplies ({deferred.get('count')} documents) whose tax point falls in "
                          f"the next period — a timing difference, not an under-declaration."))
     return Adjudication(hypothesis_id=h.id, status="refuted", detail=dict(deferred),
@@ -141,13 +141,13 @@ def _period_shift(h: Hypothesis, ctx: CaseContext) -> Adjudication:
 def _rate_misapplication(h: Hypothesis, ctx: CaseContext) -> Adjudication:
     box = ctx.box(h.test.box)
     a, b = float(h.test.params.get("from_rate", 15)), float(h.test.params.get("to_rate", 5))
-    base, residual = box["expected_base"], box["residual"]
+    base, unexplained = box["expected_base"], box["unexplained"]
     implied = round(base * (a - b) / 100.0, 2)
-    if abs(residual) > TOLERANCE and _close(implied, residual):
+    if abs(unexplained) > TOLERANCE and _close(implied, unexplained):
         return Adjudication(
-            hypothesis_id=h.id, status="confirmed", amount=round(residual, 2),
+            hypothesis_id=h.id, status="confirmed", amount=round(unexplained, 2),
             detail={"base": base, "from_rate": a, "to_rate": b, "implied": implied},
-            explanation=(f"The difference of SAR {residual:,.0f} equals the taxable base of SAR "
+            explanation=(f"The difference of SAR {unexplained:,.0f} equals the taxable base of SAR "
                          f"{base:,.0f} at {a:g}% rather than {b:g}% — a rate applied to the "
                          f"whole base, not a missing supply."))
     return Adjudication(hypothesis_id=h.id, status="refuted",

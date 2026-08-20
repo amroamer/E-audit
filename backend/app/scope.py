@@ -71,7 +71,7 @@ OUT_OF_SCOPE: tuple[dict[str, str], ...] = (
              "which is where an over-claim would really be proven."},
     {"item": "Late arrivals and rolling reconciliation", "reason_code": "T03",
      "note": "A single closed-period pass. Documents cleared after the return was filed do not "
-             "reopen the bridge."},
+             "reopen the comparison."},
 )
 
 TAX_POINT_NOTE = (

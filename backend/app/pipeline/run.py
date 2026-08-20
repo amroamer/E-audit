@@ -12,8 +12,8 @@ Two phases, because they answer different questions:
 2. **coded** — the rule_library rules that decide period and netting. Toggling one in the
    Rulebook page changes the expected return.
 
-Every line keeps its decision trail, which is what the bridge, the drill-downs and (next)
-the investigation agents read.
+Every line keeps its decision trail, which is what the funnel, the drill-downs and the
+investigation agents read.
 """
 from __future__ import annotations
 
@@ -108,59 +108,84 @@ def qualify(rows: list[dict], enabled: set[str], direction: str) -> list[Qualifi
 # --------------------------------------------------------------------- composition
 @dataclass
 class Composition:
-    """The expected return, and the rule contributions that produced it.
+    """The expected return, and the narrowing that produced it.
 
-    `base + Σ row.amount == expected_vat` by construction, so the bridge can never claim a
-    movement the line-level decisions do not support.
+    There is no "baseline" here, and deliberately so. A pre-qualification total would be a
+    figure that corresponds to nothing: it would have to include documents the rules put in
+    another period and exclude documents the rules admit, purely so a waterfall could be
+    drawn from it. The rules decide *which lines are in this box for this period*; the sum
+    follows. The only real quantities are the population it started from and the total it
+    arrived at, and `funnel` is the audit trail between them.
     """
-    base_vat: float
-    base_lines: list[QualifiedLine]
-    rows: list[dict]
     expected_vat: float
     expected_base: float
     counted: int
+    counted_lines: list[QualifiedLine]
     population: int
-    netted_lines: list[QualifiedLine]
+    population_lines: list[QualifiedLine]
+    funnel: list[dict]         # ordered: how the population narrowed, and why
+    composition: list[dict]    # what the qualifying set is made of, by document type
+
+
+TYPE_LABEL = {388: "Tax invoices", 381: "Credit notes", 383: "Debit notes",
+              386: "Prepayment invoices"}
+
+
+def _terminal(line: QualifiedLine) -> Decision | None:
+    """The decision that kept this line out — the last one that excluded or deferred it."""
+    for d in reversed(line.decisions):
+        if d.verdict in ("excluded", "deferred-next"):
+            return d
+    return None
 
 
 def compose(lines: list[QualifiedLine], enabled: set[str], direction: str) -> Composition:
-    pop = [l for l in lines if l.in_population]
-    coded = [r for r in rules_in_order(direction) if not r.structural]
-
-    # The baseline is the population minus the lines a netting rule owns (credit notes),
-    # so it does not move when a rule is toggled — only the contributions do.
-    netting = {r.code for r in coded if r.exclude_when_disabled}
-    base_lines = [l for l in pop if not (l.matched & netting)]
-    base_vat = round(sum(l.tax_amount for l in base_lines), 2)
-
-    rows: list[dict] = []
-    for rule in coded:
-        owned = [l for l in pop if rule.code in l.matched]
-        if not owned:
-            continue
-        live = rule.code in enabled
-        if rule.exclude_when_disabled:
-            # netting rule: its lines join the sum when live (they carry a negative amount)
-            amount = round(sum(l.tax_amount for l in owned), 2) if live else 0.0
-        else:
-            # period/exclusion rule: it removes its lines from the sum when live
-            amount = round(-sum(l.tax_amount for l in owned), 2) if live else 0.0
-        if not live or abs(amount) <= 0.005:
-            continue
-        rows.append({
-            "rule": rule.code, "stage": rule.stage, "reason_code": rule.reason_code,
-            "verdict": "deferred-next" if rule.action is Action.DEFER_NEXT else "admitted",
-            "label": rule.label, "note": rule.note,
-            "amount": amount, "count": len(owned), "lines": owned,
-        })
-
+    """Sum what qualifies, and record how the population narrowed to it."""
     counted = [l for l in lines if l.counted]
+    stage_rank = {s: i for i, s in enumerate(
+        r.stage for r in rules_in_order(direction))}
+
+    # group every line that did NOT qualify by the decision responsible for it
+    groups: dict[tuple, dict] = {}
+    for line in lines:
+        if line.counted:
+            continue
+        d = _terminal(line)
+        if d is None:                       # admitted but not counted — should not happen
+            continue
+        key = (d.stage, d.rule_code, d.verdict)
+        g = groups.setdefault(key, {
+            "stage": d.stage, "rule": d.rule_code or None, "verdict": d.verdict,
+            "reason_code": d.reason_code,
+            "label": d.label or d.note, "note": d.note,
+            "count": 0, "amount": 0.0, "lines": [],
+        })
+        g["count"] += 1
+        g["amount"] = round(g["amount"] + line.tax_amount, 2)
+        g["lines"].append(line)
+
+    funnel = sorted(groups.values(),
+                    key=lambda g: (stage_rank.get(g["stage"], 99), g["rule"] or ""))
+
+    # what the qualifying set is actually made of — invoices, credit notes, and so on
+    by_type: dict[int, dict] = {}
+    for line in counted:
+        code = int(line.row["type_code"])
+        c = by_type.setdefault(code, {
+            "type_code": code, "label": TYPE_LABEL.get(code, f"Type {code}"),
+            "count": 0, "amount": 0.0, "lines": [],
+        })
+        c["count"] += 1
+        c["amount"] = round(c["amount"] + line.tax_amount, 2)
+        c["lines"].append(line)
+    composition = sorted(by_type.values(), key=lambda c: -abs(c["amount"]))
+
     return Composition(
-        base_vat=base_vat, base_lines=base_lines, rows=rows,
         expected_vat=round(sum(l.tax_amount for l in counted), 2),
         expected_base=round(sum(l.taxable_amount for l in counted), 2),
-        counted=len(counted), population=len(pop),
-        netted_lines=[l for l in pop if l.matched & netting],
+        counted=len(counted), counted_lines=counted,
+        population=len(lines), population_lines=list(lines),
+        funnel=funnel, composition=composition,
     )
 
 

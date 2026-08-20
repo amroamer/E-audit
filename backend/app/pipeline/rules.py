@@ -12,7 +12,7 @@ Two kinds of entry live here:
   auditor may switch off" — it is simply not part of this box.
 * **coded** rules carry a `core.rule_library` code and fire only while that rule is
   enabled. Disabling one changes the expected return, exactly as toggling it in the
-  Rulebook page changes the bridge today.
+  Rulebook page changes which documents qualify, and so changes the expected figure.
 
 Ordering is `rule_taxonomy.STAGES`, and it matters: a line is deferred to the next period
 *before* notes are netted, so a note never lands in a period its original has left.
@@ -47,7 +47,7 @@ class QualificationRule:
     reason_code: str
     note: str
     code: str = ""                        # rule_library code; "" = structural
-    label: str = ""                       # bridge caption, when it moves an amount
+    label: str = ""                       # funnel caption, when it sets documents aside
     direction: str = ""                   # "" = both
     exclude_when_disabled: bool = False    # ADMIT rules: dropping the rule drops the lines
     # Scope. The auditors were explicit that the expected relationship varies by sector and by

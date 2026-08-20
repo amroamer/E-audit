@@ -4,9 +4,11 @@ from __future__ import annotations
 import re
 from decimal import Decimal
 
-# ---- placeholder identity: the ONLY way an engine number may appear in Claude prose
-_SCALAR_KEYS = ("declared", "reconstructed_gross", "apparent_gap", "explained_total",
-                "explained_pct", "residual", "materiality", "invoices_considered")
+# ---- placeholder identity: the ONLY way an engine number may appear in Claude prose.
+# The vocabulary is the engine's, and it is deliberately short: rules decide which documents
+# qualify, so there is no pre-qualification total and no "explained by rules" share to name.
+_SCALAR_KEYS = ("declared", "expected", "difference", "evidence_total", "unexplained",
+                "materiality", "invoices_considered", "qualifying_count", "population_count")
 
 # ---- literals Claude is allowed to write verbatim (NOT figures): rule + doc codes, VAT rate
 _RULECODE_RE = re.compile(r"\b[A-Z]{2,4}-\d{2,3}\b")          # COR-01, TIM-04
@@ -39,15 +41,25 @@ def _sar(v) -> str:
 
 
 def placeholder_values(recon: dict) -> dict:
-    vals = {k: _sar(recon[k]) for k in
-            ("declared", "reconstructed_gross", "apparent_gap",
-             "explained_total", "residual", "materiality")}
-    vals["invoices_considered"] = f"{int(recon['invoices_considered'])}"
-    ep = recon.get("explained_pct")
-    vals["explained_pct"] = "—" if ep is None else f"{round(float(ep) * 100)}%"
-    for b in recon["bridge"]:
-        if b.get("rule"):
-            vals[f"bridge.{b['rule']}"] = _sar(b["amount"])
+    vals = {
+        "declared": _sar(recon["declared"]),
+        "expected": _sar(recon["expected_vat"]),
+        "difference": _sar(recon["difference"]),
+        "evidence_total": _sar(recon.get("evidence_total", 0.0)),
+        "unexplained": _sar(recon["unexplained"]),
+        "materiality": _sar(recon["materiality"]),
+        "invoices_considered": f"{int(recon['invoices_considered'])}",
+        "qualifying_count": f"{int(recon.get('counted_lines', 0))}",
+        "population_count": f"{int(recon.get('population_lines', 0))}",
+    }
+    # one token per rule that removed documents, so prose can name what a step did without
+    # implying it subtracted anything from a total
+    for step in recon.get("funnel", []):
+        if step.get("rule"):
+            vals[f"step.{step['rule']}"] = _sar(step["amount"])
+            vals[f"step.{step['rule']}.count"] = f"{int(step['count'])}"
+    for ev in recon.get("evidence", []):
+        vals[f"evidence.{ev['code']}"] = _sar(ev["amount"])
     return vals
 
 
@@ -129,12 +141,12 @@ def verify_conclusion(text: str, recon: dict) -> list:
     """A wrong VERDICT passes every figure check. Guard the words that flip the outcome."""
     text = text or ""
     state = recon.get("state")
-    resid, mat = abs(float(recon["residual"])), abs(float(recon["materiality"]))
+    left, mat = abs(float(recon["unexplained"])), abs(float(recon["materiality"]))
     out: list[str] = []
     if state == "supported":
         out += [f"finding-language on a SUPPORTED case: “{m.group(0)}”"
                 for m in _FINDING_WORDS.finditer(text)]
-    if state == "potential-finding" and resid > mat:
+    if state == "potential-finding" and left > mat:
         out += [f"clearance-language on an OPEN finding: “{m.group(0)}”"
                 for m in _CLEARED_WORDS.finditer(text)]
     return out
@@ -182,32 +194,39 @@ class StreamGuard:
 # =========================================================== deterministic fallbacks
 # ENGINE-AUTHORED trusted text — real digits are fine here and NOT passed through verify.
 def fb_narration(recon: dict) -> str:
-    expl = "; ".join(
-        f"{b['rule']} {b['label'].lower()} ({_sar(b['amount'])})"
-        for b in recon["bridge"] if b["kind"] == "explain") or "no reconciling items"
-    tail = ("leaving no material residual." if recon["state"] == "supported"
-            else f"leaving an unexplained residual of {_sar(recon['residual'])} ({recon['band']}).")
-    return (f"Reconstructing {recon['box'].lower()} from {int(recon['invoices_considered'])} "
-            f"cleared e-invoices gives {_sar(recon['reconstructed_gross'])} against "
-            f"{_sar(recon['declared'])} declared — an apparent gap of "
-            f"{_sar(recon['apparent_gap'])}. The bridge explains it via {expl}, {tail}")
+    """The engine's own account of the box. Qualification first, then the comparison."""
+    steps = [s for s in recon.get("funnel", []) if s["kind"] in ("exclude", "defer")]
+    removed = "; ".join(
+        f"{s['count']} for {s['label'].lower()}" + (f" ({s['rule']})" if s.get("rule") else "")
+        for s in steps) or "nothing"
+    ev = recon.get("evidence_total") or 0.0
+    tail = ("The two agree within materiality." if recon["state"] == "supported"
+            else f"That leaves {_sar(recon['unexplained'])} unexplained ({recon['band']}).")
+    ev_txt = (f" Taxpayer evidence accounts for {_sar(ev)} of it." if ev else "")
+    return (f"Of {int(recon.get('population_lines', 0))} {recon['box'].lower()} lines on file, "
+            f"the rules set aside {removed}, leaving {int(recon.get('counted_lines', 0))} that "
+            f"qualify for this period and total {_sar(recon['expected_vat'])}. The return "
+            f"declares {_sar(recon['declared'])}, a difference of "
+            f"{_sar(recon['difference'])}.{ev_txt} {tail}")
 
 
 def fb_nba(recon: dict):
     from .schemas import NextBestAction
-    if recon["state"] == "supported" or abs(recon["residual"]) <= recon["materiality"]:
+    if recon["state"] == "supported" or abs(recon["unexplained"]) <= recon["materiality"]:
         return NextBestAction(
             action_type="no-action",
-            document_requested="None — residual within materiality.",
+            document_requested="None — the difference is within materiality.",
             addressed_to="internal-review",
-            rationale="The reconstructed position reconciles to the declared box within materiality.",
+            rationale="What qualifies for this period agrees with the declared box.",
             expected_yield="Case can be closed as supported.", minimises_contact=True)
     return NextBestAction(
         action_type="request-explanation",
-        document_requested="A written reconciliation of the unexplained residual for the period.",
+        document_requested="A written reconciliation of the difference for the period.",
         addressed_to="taxpayer",
-        rationale="The bridge closes the known reconciling items; only the residual remains.",
-        expected_yield="Confirms or clears the residual of {{residual}}.", minimises_contact=False)
+        rationale="The qualifying e-invoices and the declared box do not agree, and nothing on "
+                  "file accounts for the difference.",
+        expected_yield="Confirms or clears the {{unexplained}} still unaccounted for.",
+        minimises_contact=False)
 
 
 def fb_summary(profile: dict, prior_returns: list, prior_cases: list) -> dict:
@@ -228,18 +247,31 @@ def fb_summary(profile: dict, prior_returns: list, prior_cases: list) -> dict:
 
 
 def fb_report(recon: dict) -> str:
-    concl = ("The reconstructed position reconciles to the declared box within materiality; "
+    """The audit report, written by the engine. Qualification, then comparison — in that order."""
+    concl = ("What qualifies for this period agrees with the declared box within materiality; "
              "the case is **supported** with no further action."
              if recon["state"] == "supported"
-             else f"An unexplained residual of {_sar(recon['residual'])} ({recon['band']}) "
-                  f"remains after the bridge; the case is a **potential finding** pending evidence.")
-    lines = "\n".join(f"- {b['label']}: {_sar(b['amount'])} (running {_sar(b['running'])})"
-                      for b in recon["bridge"])
-    return (f"## Case summary\nDeclared {_sar(recon['declared'])} for {recon['box']}; "
-            f"reconstructed {_sar(recon['reconstructed_gross'])} from "
-            f"{int(recon['invoices_considered'])} cleared e-invoices.\n\n"
-            f"## Reconstruction & bridge\n{lines}\n\n"
-            f"## Residual & conclusion\n{concl}\n\n"
+             else f"{_sar(recon['unexplained'])} ({recon['band']}) is still unaccounted for; "
+                  f"the case is a **potential finding** pending evidence.")
+    steps = "\n".join(
+        f"- {s['label']}: {s['count']} document(s), {_sar(s['amount'])}"
+        + (f" [{s['rule']}]" if s.get("rule") else "")
+        for s in recon.get("funnel", []) if s["kind"] in ("exclude", "defer")) \
+        or "- No rule removed any document from the population."
+    ev = "\n".join(f"- {e['label']}: {_sar(e['amount'])}"
+                   for e in recon.get("evidence", []))
+    return (f"## Case summary\n"
+            f"{int(recon.get('counted_lines', 0))} of "
+            f"{int(recon.get('population_lines', 0))} {recon['box'].lower()} lines qualify for "
+            f"this period, totalling {_sar(recon['expected_vat'])}. The return declares "
+            f"{_sar(recon['declared'])}.\n\n"
+            f"## Which documents qualify\n{steps}\n\n"
+            f"## Comparison\n"
+            f"- Expected (qualifying e-invoices): {_sar(recon['expected_vat'])}\n"
+            f"- Declared (as filed): {_sar(recon['declared'])}\n"
+            f"- Difference: {_sar(recon['difference'])}\n"
+            + (f"\n### Accounted for by taxpayer evidence\n{ev}\n" if ev else "")
+            + f"\n## Conclusion\n{concl}\n\n"
             f"## Recommended next action\n"
             + ("Close as supported." if recon["state"] == "supported"
-               else "Request a written reconciliation of the residual from the taxpayer."))
+               else "Request a written reconciliation of the difference from the taxpayer."))

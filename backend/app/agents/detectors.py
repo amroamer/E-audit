@@ -22,7 +22,7 @@ RECOMPUTE = "Recomputation Check"
 
 def _material(ctx: CaseContext, box: str) -> bool:
     b = ctx.box(box)
-    return abs(b["residual"]) > b["materiality"]
+    return abs(b["unexplained"]) > b["materiality"]
 
 
 def reconstruction_analyst(ctx: CaseContext) -> list[Hypothesis]:

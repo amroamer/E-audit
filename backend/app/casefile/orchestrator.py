@@ -101,7 +101,7 @@ def status(db: Session, case: AuditCase, *, recon: dict | None = None,
         except Exception:                       # noqa: BLE001 — a case may have no return
             recon = None
     settled = (recon is not None
-               and abs(float(recon["residual"])) <= float(recon["materiality"])
+               and abs(float(recon["unexplained"])) <= float(recon["materiality"])
                and recon.get("purchase", {}).get("state") != "potential-finding")
 
     # ---- 1 · intake -------------------------------------------------------------------
@@ -188,29 +188,29 @@ def status(db: Session, case: AuditCase, *, recon: dict | None = None,
         stages.append(Stage(key="review", label=LABELS["review"], state=PENDING,
                             owner=OWNERS["review"], summary="No return on file to reconcile."))
     else:
-        residual = float(recon["residual"])
+        unexplained = float(recon["unexplained"])
         leading = (investigation or {}).get("conclusion", "")
         if settled:
             stages.append(Stage(
                 key="review", label=LABELS["review"], state=DONE, owner=OWNERS["review"],
                 summary="The declared return is supported by the qualified evidence within "
                         "materiality.",
-                detail={"residual": residual, "state": recon["state"]}))
+                detail={"unexplained": unexplained, "state": recon["state"]}))
         elif loop_complete:
             stages.append(Stage(
                 key="review", label=LABELS["review"], state=ACTIVE, owner=OWNERS["review"],
-                summary=(f"{_sar(residual)} unexplained with the evidence complete."
+                summary=(f"{_sar(unexplained)} unexplained with the evidence complete."
                          + (f" {leading}" if leading else "")),
                 next_action="Validate the leading hypothesis and reach a conclusion.",
-                detail={"residual": residual, "state": recon["state"]}))
+                detail={"unexplained": unexplained, "state": recon["state"]}))
         else:
             stages.append(Stage(
                 key="review", label=LABELS["review"], state=ACTIVE, owner=OWNERS["review"],
-                summary=(f"{_sar(residual)} unexplained on internal data. The evidence "
+                summary=(f"{_sar(unexplained)} unexplained on internal data. The evidence "
                          f"requested is not yet complete, so this is provisional."),
                 next_action="Continue the review; do not conclude until the response is "
                             "complete.",
-                detail={"residual": residual, "state": recon["state"], "provisional": True}))
+                detail={"unexplained": unexplained, "state": recon["state"], "provisional": True}))
 
     # ---- 5 · closure ------------------------------------------------------------------
     responses = db.scalars(

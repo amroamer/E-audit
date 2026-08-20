@@ -1,15 +1,17 @@
 """Rule taxonomy — separating the three things the rulebook conflates.
 
-`docs/VAT-Mistakes-Rulebook.md` catalogues 65 things that can go wrong, but a
-single `explains_gap` column hides the fact that those 65 entries are really
+`docs/VAT-Mistakes-Rulebook.md` catalogues 66 things that can go wrong, but a
+single `explains_gap` column hides the fact that those 66 entries are really
 three different kinds of object:
 
 * **explanation** — a legitimate reason a VAT return differs from the e-invoice
   population (credit notes, tax-point timing, transmission lag). It becomes a
-  *bridge line* and reduces the residual.
+  reason a line *qualifies differently* — it changes which documents count, and so
+  changes the expected figure itself.
 * **mistake** — a taxpayer error. It becomes a *finding*.
 * **risk** — a behavioural or data-quality signal (late filing, rounding drift,
-  broken continuity). It feeds *prioritisation*; it is never a bridge line.
+  broken continuity). It feeds *prioritisation*; it never changes which documents
+  qualify, and so can never move the expected figure.
 
 The same phenomenon can sit on either side of that split depending on polarity:
 COR-01 is titled "Sales credit notes (381) issued but output not reduced" — a
@@ -19,7 +21,7 @@ leaving it implicit in the engine's `if` statements.
 
 Alongside `kind`, each rule carries:
 
-* **stage** — where it sits in the evaluation precedence. A residual may only be
+* **stage** — where it sits in the evaluation precedence. A difference may only be
   called non-compliant after every earlier stage has had its say.
 * **reason_code** — which class of difference the rule is about. Reason codes
   describe the *phenomenon*; `kind` describes the *verdict*. A scope code on a
@@ -48,7 +50,7 @@ STAGES = (
     "adjustment",    # credit note, debit note, bad debt, correction
     "aggregation",   # individual invoice, summary invoice, B2C batch
     "timing",        # is the difference inside an acceptable reporting window?
-    "materiality",   # is the residual above the taxpayer-specific tolerance?
+    "materiality",   # is the difference above the taxpayer-specific tolerance?
     "risk",          # is it persistent, unusual, or corroborated by other signals?
 )
 

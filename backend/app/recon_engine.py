@@ -1,19 +1,29 @@
-"""Reconstruction + reconciliation bridge (deterministic core).
+"""Reconstruction and comparison (deterministic core).
 
 Rebuilds the **expected** VAT return from the taxpayer's e-invoices and compares it to the
 declared boxes. Every number here is computed — no AI, no estimation.
 
-The rules run *during* aggregation, not after it. Each tax-subtotal line is walked through
-`app/pipeline` — population, status, tax point, category, adjustment — and only the lines
-that survive are summed. That matters because a rule can do things a subtraction cannot:
-move a supply to the next period (it must also *arrive* there), move a line between boxes,
-and admit each line exactly once so two rules cannot double-count the same document.
+The rules run *during* aggregation, never after it. Each tax-subtotal line is walked through
+`app/pipeline` — status, tax point, category, adjustment — and only the lines that survive
+are summed. A rule can therefore do things a subtraction cannot: move a supply to the next
+period (where it must also *arrive*), move a line between boxes, and admit each line exactly
+once so two rules cannot double-count the same document.
 
-The bridge is then *derived* from those line decisions rather than hand-wired, so a row can
-never claim a movement the underlying lines do not support. `base + Σ rows == expected`
-holds by construction.
+That order rules out a whole class of misleading output, and the shape of this module
+reflects it. There is **no pre-qualification total**. Such a figure would have to include
+documents the rules put in another period and exclude documents the rules admit, purely so a
+waterfall could be drawn from it — it would correspond to nothing, and every "explained by
+rules" percentage derived from it would be one artifact over another. A rule that fires has
+already changed which documents count; there is nothing left for it to explain.
 
-Each bridge line carries a `detail` payload (the underlying invoices, the rule and the
+What the module publishes instead is the narrowing itself — `funnel`, an ordered account of
+how the population became the qualifying set, straight from the line decisions — and then a
+plain comparison:
+
+    expected − declared            = difference
+    difference − taxpayer evidence = unexplained
+
+Every funnel step carries a `detail` payload (the underlying invoices, the rule and the
 computation) so the UI can open a drill-down for any figure.
 """
 from __future__ import annotations
@@ -23,7 +33,7 @@ from sqlalchemy.orm import Session
 
 from .models import (
     AuditCase, VatReturn, Invoice, Rule,
-    CaseRecon, RebuiltBox, BridgeLine, Residual, Conclusion, EventLog,
+    CaseRecon, RebuiltBox, QualificationStep, Residual, Conclusion, EventLog,
     TaxpayerResponse,
 )
 from .pipeline.rules import BOX_PURCHASE, BOX_SALES
@@ -127,6 +137,17 @@ def _reconstruct(db: Session, *, invs: list[Invoice], declared: float, direction
                  invoices_considered: int, finding_sign: int) -> dict:
     """Qualify, sum, compare. Shared by the output and input boxes.
 
+    The order is the whole point and there is no step before it. Rules decide which lines
+    belong in this box for this period; the qualifying lines are summed; that sum is what the
+    return should have said. Nothing is summed and then adjusted, so there is no
+    pre-qualification total, no "apparent gap" and nothing for a rule to "explain" — a rule
+    that fires has already changed which documents count.
+
+    What is left is a straight comparison:
+
+        expected − declared            = difference
+        difference − taxpayer evidence = unexplained
+
     `finding_sign` is +1 where an under-declaration is the revenue risk (output VAT) and
     -1 where an over-claim is (input VAT).
     """
@@ -135,65 +156,106 @@ def _reconstruct(db: Session, *, invs: list[Invoice], declared: float, direction
     lines = qualify(rows, enabled, direction)
     comp = compose(lines, enabled, direction)
 
-    # legacy-compatible framing: the pre-qualification baseline and the gap it implies
-    reconstructed_gross = comp.base_vat
-    apparent_gap = round(reconstructed_gross - declared, 2)
+    # ---- how the population narrowed, step by step -----------------------------------
+    funnel = [{
+        "seq": 0, "kind": "population", "rule": None, "stage": "",
+        "label": ("Sale e-invoices on file" if direction == "sale"
+                  else "Purchase e-invoices on file"),
+        "count": comp.population, "amount": round(sum(l.tax_amount for l in lines), 2),
+        "detail": {
+            "type": "population",
+            "note": ("Every e-invoice line held for this taxpayer in this direction, before "
+                     "any rule is applied. It is a starting point, not a figure with meaning "
+                     "— the rules below decide which of these lines belong in this box."),
+            "count": comp.population,
+            "invoices": _line_invoice_rows(list(lines)),
+        },
+    }]
+    for seq, g in enumerate(comp.funnel, start=1):
+        rule_code = g["rule"]
+        funnel.append({
+            "seq": seq,
+            "kind": "defer" if g["verdict"] == "deferred-next" else "exclude",
+            "rule": rule_code,
+            "stage": g["stage"],
+            "reason_code": g["reason_code"],
+            "label": g["label"],
+            "count": g["count"],
+            "amount": g["amount"],
+            "detail": {
+                "type": "rule" if rule_code else "structural",
+                "rule": _rinfo(db, rule_code) if rule_code else None,
+                "reason_code": g["reason_code"],
+                "reason_label": REASON_CODES.get(g["reason_code"], ("", ""))[1],
+                "stage": g["stage"],
+                "verdict": g["verdict"],
+                "note": g["note"],
+                "count": g["count"],
+                "total": g["amount"],
+                "invoices": _line_invoice_rows(g["lines"]),
+            },
+        })
+    funnel.append({
+        "seq": len(funnel), "kind": "qualified", "rule": None, "stage": "",
+        "label": f"Qualify for {period_from:%b %Y} – {period_to:%b %Y}",
+        "count": comp.counted, "amount": comp.expected_vat,
+        "detail": {
+            "type": "qualified",
+            "formula": "Σ TAXSUBTOTAL (tax category S @ 15%) over the lines that qualified",
+            "note": ("The lines that survived every rule, summed. This is what the return "
+                     "should have declared for this box."),
+            "count": comp.counted,
+            "total": comp.expected_vat,
+            "invoices": _line_invoice_rows(comp.counted_lines),
+        },
+    })
 
-    items: list[tuple[str, str, float]] = []
-    explain_detail: dict[str, dict] = {}
-    for r in comp.rows:
-        items.append((r["rule"], r["label"], r["amount"]))
-        explain_detail[r["rule"]] = {
-            "type": "rule",
-            "rule": _rinfo(db, r["rule"]),
-            "reason_code": r["reason_code"],
-            "reason_label": REASON_CODES.get(r["reason_code"], ("", ""))[1],
-            "stage": r["stage"],
-            "verdict": r["verdict"],
-            "note": r["note"],
-            "count": r["count"],
-            "total": r["amount"],
-            "invoices": _line_invoice_rows(r["lines"]),
-        }
+    composition = [{
+        "type_code": c["type_code"], "label": c["label"], "count": c["count"],
+        "amount": c["amount"],
+        "detail": {"type": "composition", "label": c["label"], "count": c["count"],
+                   "total": c["amount"],
+                   "note": f"{c['label']} among the lines that qualified for this box.",
+                   "invoices": _line_invoice_rows(c["lines"])},
+    } for c in comp.composition]
 
-    # auditor-confirmed taxpayer evidence is not a line decision — it applies after
-    # qualification, against the difference that survived
+    # ---- compare ---------------------------------------------------------------------
+    difference = round(comp.expected_vat - declared, 2)
+
+    # Taxpayer evidence is the one thing that can account for a difference *after* the fact:
+    # it arrives later, and the auditor confirms the amount by hand. It is not a rule and is
+    # never mixed in with one.
+    evidence = []
+    evidence_total = 0.0
     for resp in (responses or []):
-        amount = round(-abs(float(resp.amount)), 2)
-        items.append((resp.code, resp.label, amount))
-        explain_detail[resp.code] = {
-            "type": "response", "label": resp.label, "doc_name": resp.doc_name,
-            "count": 0, "total": amount, "invoices": [],
-            "note": ("Evidence provided by the taxpayer"
-                     + (f" — {resp.doc_name}" if resp.doc_name else "")
-                     + ". The auditor confirmed the SAR amount it accounts for; this figure is "
-                       "auditor-entered, not AI-generated."),
-        }
+        amount = round(abs(float(resp.amount)), 2)
+        evidence_total = round(evidence_total + amount, 2)
+        evidence.append({
+            "code": resp.code, "label": resp.label, "amount": amount,
+            "doc_name": resp.doc_name,
+            "detail": {
+                "type": "response", "label": resp.label, "doc_name": resp.doc_name,
+                "count": 0, "total": amount, "invoices": [],
+                "note": ("Evidence provided by the taxpayer"
+                         + (f" — {resp.doc_name}" if resp.doc_name else "")
+                         + ". The auditor confirmed the SAR amount it accounts for; this "
+                           "figure is auditor-entered, not AI-generated."),
+            },
+        })
 
-    response_total = round(sum(a for c, _, a in items if c.startswith("RESP-")), 2)
-    residual = round(comp.expected_vat + response_total - declared, 2)
-    explained_total = round(apparent_gap - residual, 2)
-    explained_pct = round(explained_total / apparent_gap, 4) if apparent_gap else None
+    # evidence eats into the difference from whichever side it sits
+    unexplained = round(difference - evidence_total * (1 if difference >= 0 else -1), 2)
+    if evidence_total and abs(unexplained) > abs(difference):
+        unexplained = 0.0                       # evidence cannot make a difference larger
     materiality = round(max(MATERIALITY_FLOOR, MATERIALITY_PCT * declared), 2)
 
-    if abs(residual) <= materiality:
-        band, state = ("noise" if abs(residual) <= 1 else "immaterial"), "supported"
-    elif residual * finding_sign > 0:
+    if abs(unexplained) <= materiality:
+        band, state = ("noise" if abs(unexplained) <= 1 else "immaterial"), "supported"
+    elif unexplained * finding_sign > 0:
         band, state = "material", "potential-finding"
     else:
         band, state = "material", "unresolved"
 
-    recon_detail = {
-        "type": "reconstruction",
-        "formula": "Σ TAXSUBTOTAL (tax category S @ 15%) over qualified "
-                   f"{'sale' if direction == 'sale' else 'purchase'} lines",
-        "note": f"Standard-rated {'output' if direction == 'sale' else 'input'} VAT rebuilt "
-                "line by line from the taxpayer's e-invoices. Each line was qualified before "
-                "it was summed; the rows below are the lines that entered the baseline.",
-        "count": len(comp.base_lines),
-        "total": reconstructed_gross,
-        "invoices": _line_invoice_rows(comp.base_lines),
-    }
     declared_detail = {
         "type": "declared",
         "form_number": ret.form_number if ret else None,
@@ -208,59 +270,49 @@ def _reconstruct(db: Session, *, invs: list[Invoice], declared: float, direction
                  "The input VAT the taxpayer claimed for this box, from the current filed return."),
     }
     if state == "potential-finding" and direction == "sale":
-        res_note = ("Above the materiality threshold and unexplained by any rule — a potential "
-                    "under-declaration of output VAT. Recommended next step: request the sales ledger "
-                    "covering the residual to confirm.")
+        diff_note = ("Above the materiality threshold — more output VAT qualifies for this "
+                     "period than the return declares, which is a potential under-declaration. "
+                     "Recommended next step: request the sales ledger covering the difference.")
     elif state == "potential-finding":
-        res_note = ("Declared input VAT exceeds what the qualified purchase e-invoices support — a "
-                    "potential over-claim of recoverable input VAT. Recommended next step: request "
-                    "the purchase ledger and tax invoices covering the residual.")
+        diff_note = ("Declared input VAT exceeds what the qualifying purchase e-invoices "
+                     "support — a potential over-claim of recoverable input VAT. Recommended "
+                     "next step: request the purchase ledger and tax invoices.")
     elif state == "supported":
-        res_note = ("Within the materiality threshold — the declared return is supported by the "
-                    "qualified e-invoice evidence. No finding.")
+        diff_note = ("Within the materiality threshold — the declared figure agrees with what "
+                     "qualifies for this period. No finding.")
     elif direction == "sale":
-        res_note = "Material negative residual — the taxpayer may have over-declared; investigate."
+        diff_note = ("The return declares more output VAT than qualifies for the period — the "
+                     "taxpayer may have over-declared; investigate.")
     else:
-        res_note = ("Declared input is below what the invoices support — the taxpayer may have "
-                    "under-claimed recoverable input VAT; no revenue risk to the Authority.")
-    residual_detail = {"type": "residual", "amount": residual, "materiality": materiality,
-                       "band": band, "state": state, "note": res_note}
-
-    anchor_label = "Declared (as filed)" if direction == "sale" else "Declared input (as filed)"
-    gap_label = ("Reconstructed from e-invoices" if direction == "sale"
-                 else "Reconstructed from purchase e-invoices")
-    bridge = [{"seq": 0, "kind": "anchor", "rule": None, "label": anchor_label,
-               "amount": declared, "running": declared, "detail": declared_detail}]
-    running = round(declared + apparent_gap, 2)
-    bridge.append({"seq": 1, "kind": "gap", "rule": None, "label": gap_label,
-                   "amount": apparent_gap, "running": running, "detail": recon_detail})
-    for seq, (rule, label, amount) in enumerate(items, start=2):
-        running = round(running + amount, 2)
-        bridge.append({"seq": seq, "kind": "explain", "rule": rule, "label": label,
-                       "amount": amount, "running": running, "detail": explain_detail.get(rule)})
-    bridge.append({"seq": len(items) + 2, "kind": "residual", "rule": None,
-                   "label": "Unexplained residual", "amount": residual, "running": running,
-                   "detail": residual_detail})
+        diff_note = ("Declared input is below what the qualifying invoices support — the "
+                     "taxpayer may have under-claimed; no revenue risk to the Authority.")
+    difference_detail = {"type": "difference", "expected": comp.expected_vat,
+                         "declared": declared, "difference": difference,
+                         "evidence_total": evidence_total, "unexplained": unexplained,
+                         "materiality": materiality, "band": band, "state": state,
+                         "note": diff_note}
 
     out_lines = deferred(lines)
     return {
         "box": box_title,
+        "box_code": box_code,
         "declared": declared,
-        "reconstructed_gross": reconstructed_gross,
-        "apparent_gap": apparent_gap,
-        "explained_total": explained_total,
-        "explained_pct": explained_pct,
-        "residual": residual,
+        "expected_vat": comp.expected_vat,
+        "expected_base": comp.expected_base,
+        "difference": difference,
+        "evidence_total": evidence_total,
+        "evidence": evidence,
+        "unexplained": unexplained,
         "materiality": materiality,
         "band": band,
         "state": state,
-        "bridge": bridge,
+        "funnel": funnel,
+        "composition": composition,
+        "declared_detail": declared_detail,
+        "difference_detail": difference_detail,
         "invoices_considered": invoices_considered,
         "evidence_invoices": _line_invoice_rows(
             [l for l in lines if l.in_population]),
-        # --- qualification-first additions
-        "expected_vat": comp.expected_vat,
-        "expected_base": comp.expected_base,
         "population_lines": comp.population,
         "counted_lines": comp.counted,
         "deferred_out": {"count": len(out_lines),
@@ -272,7 +324,7 @@ def _reconstruct_input(db: Session, tp, ret: VatReturn | None, period_from, peri
     """Input VAT (standard-rated purchases) — the mirror of the output box.
 
     Here an *over-claim* (declared input exceeding what the qualified purchase e-invoices
-    support, i.e. a negative residual) is the revenue risk.
+    support, i.e. a negative difference) is the revenue risk.
     """
     pbox = _box(ret, BOX_PURCHASE, "purchase")
     declared = round(float(pbox.vat_amount) if pbox else 0.0, 2)
@@ -321,42 +373,45 @@ def reconcile_case(db: Session, case_id: str, *, persist: bool = True) -> dict:
         responses=list(responses), ret=ret, dbox=dbox, sector=tp.ind_sector,
         invoices_considered=len(invs), finding_sign=1,
     )
-    residual, state = result["residual"], result["state"]
-    band, materiality = result["band"], result["materiality"]
-    apparent_gap, explained_total = result["apparent_gap"], result["explained_total"]
-    explained_pct = result["explained_pct"]
+    unexplained, state = result["unexplained"], result["state"]
+    band, difference = result["band"], result["difference"]
 
     # --- persist (idempotent: clear any prior recon for this case) --------------------
     # Only the /reconcile endpoint persists; the AI endpoints call with persist=False
     # (read-only) so their concurrent fan-out can't race on the recon tables.
     if persist:
         for p in db.scalars(select(CaseRecon).where(CaseRecon.case_id == case_id)).all():
-            for tbl in (BridgeLine, RebuiltBox, Residual, Conclusion):
+            for tbl in (QualificationStep, RebuiltBox, Residual, Conclusion):
                 db.execute(delete(tbl).where(tbl.case_recon_id == p.id))
         db.execute(delete(CaseRecon).where(CaseRecon.case_id == case_id))
         db.flush()
 
         cr = CaseRecon(
-            case_id=case_id, declared_total=declared, rebuilt_total=result["reconstructed_gross"],
-            apparent_gap=apparent_gap, explained_total=explained_total,
-            residual=residual, explained_pct=explained_pct, status=state,
+            case_id=case_id, declared_total=declared, expected_total=result["expected_vat"],
+            difference=difference, evidence_total=result["evidence_total"],
+            unexplained=unexplained, status=state,
         )
         db.add(cr)
         db.flush()
         db.add(RebuiltBox(
             case_recon_id=cr.id, box_code=BOX_SALES, direction="sale",
             rebuilt_base=result["expected_base"], rebuilt_vat=result["expected_vat"],
-            declared_vat=declared, gap_vat=apparent_gap,
+            declared_vat=declared, gap_vat=difference,
         ))
-        for seq, b in enumerate([x for x in result["bridge"] if x["kind"] == "explain"], start=1):
-            db.add(BridgeLine(case_recon_id=cr.id, seq=seq, rule_code=b["rule"],
-                              label=b["label"], side="rebuilt-side", amount=b["amount"]))
+        # the audit trail of the narrowing: one row per rule that removed documents
+        for seq, f in enumerate([x for x in result["funnel"]
+                                 if x["kind"] in ("exclude", "defer")], start=1):
+            db.add(QualificationStep(
+                case_recon_id=cr.id, seq=seq, stage=f["stage"], rule_code=f["rule"] or "",
+                verdict=f["kind"], label=f["label"],
+                line_count=f["count"], amount=f["amount"]))
         db.add(Residual(case_recon_id=cr.id, box_code=BOX_SALES,
-                        amount=residual, band=band, state=state))
+                        amount=unexplained, band=band, state=state))
         db.add(Conclusion(case_recon_id=cr.id, state=state,
-                          financial_impact=max(residual, 0.0), narrative=""))
+                          financial_impact=max(unexplained, 0.0), narrative=""))
         db.add(EventLog(case_id=case_id, actor="engine", action="reconcile",
-                        payload={"apparent_gap": apparent_gap, "residual": residual, "state": state}))
+                        payload={"expected": result["expected_vat"], "difference": difference,
+                                 "unexplained": unexplained, "state": state}))
         case.status = "reconciled"
         db.commit()
 
@@ -364,18 +419,18 @@ def reconcile_case(db: Session, case_id: str, *, persist: bool = True) -> dict:
     # exposure and headline state must combine output + input (not just the output box)
     purchase = _reconstruct_input(db, tp, ret, case.period_from, case.period_to)
     _order = {"potential-finding": 3, "unresolved": 2, "supported": 1}
-    out_finding = residual if state == "potential-finding" else 0.0
-    in_finding = abs(purchase["residual"]) if purchase["state"] == "potential-finding" else 0.0
+    out_finding = unexplained if state == "potential-finding" else 0.0
+    in_finding = abs(purchase["unexplained"]) if purchase["state"] == "potential-finding" else 0.0
     combined = {
         # revenue at risk to the Authority — findings only (drives the overview "exposure" tile)
         "total_exposure": round(out_finding + in_finding, 2),
         # ranking magnitude — any output anomaly (under- or over-declaration) + input over-claims
-        "priority_exposure": round(abs(residual) + in_finding, 2),
+        "priority_exposure": round(abs(unexplained) + in_finding, 2),
         "state": state if _order.get(state, 0) >= _order.get(purchase["state"], 0) else purchase["state"],
         "output_state": state,
         "input_state": purchase["state"],
-        "output_residual": residual,
-        "input_residual": purchase["residual"],
+        "output_unexplained": unexplained,
+        "input_unexplained": purchase["unexplained"],
         "finding_boxes": [b for b, st in (("output", state), ("input", purchase["state"]))
                           if st == "potential-finding"],
     }

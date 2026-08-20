@@ -21,7 +21,7 @@ from .config_tables import Rule, Assumption, CodeDictionary  # noqa: F401
 from .recon import (  # noqa: F401
     CaseRecon,
     RebuiltBox,
-    BridgeLine,
+    QualificationStep,
     Residual,
     Conclusion,
     EventLog,

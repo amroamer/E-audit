@@ -169,7 +169,11 @@ class RulePatch(BaseModel):
 
 @router.patch("/rules/{code}")
 def update_rule(code: str, body: RulePatch, db: Session = Depends(get_db)):
-    """Enable/disable a detection rule. Disabling a wired rule (e.g. COR-01) removes it from the bridge."""
+    """Enable/disable a detection rule.
+
+    Disabling a wired rule changes which documents qualify — e.g. turning COR-01 off means
+    credit notes no longer belong in the box, so they leave the qualifying set entirely.
+    """
     r = db.get(Rule, code)
     if not r:
         raise HTTPException(404, "rule not found")
@@ -218,7 +222,7 @@ def list_cases(db: Session = Depends(get_db)):
 def overview(db: Session = Depends(get_db)):
     """Executive tiles — aggregated live across every open case's deterministic reconciliation."""
     cases = db.scalars(select(AuditCase).where(AuditCase.status != "closed")).all()
-    exposure = explained = apparent = 0.0
+    exposure = accounted = differences = 0.0
     supported = findings = review = 0
     for c in cases:
         try:
@@ -226,11 +230,11 @@ def overview(db: Session = Depends(get_db)):
         except Exception:
             continue
         combined = r.get("combined") or {}
-        apparent += abs(r["apparent_gap"])
-        explained += max(r["explained_total"], 0.0)
+        differences += abs(r["difference"])
+        accounted += float(r.get("evidence_total", 0.0))
         state = combined.get("state", r["state"])          # worst of output + input boxes
         if state == "potential-finding":
-            exposure += float(combined.get("total_exposure", max(r["residual"], 0.0)))
+            exposure += float(combined.get("total_exposure", max(r["unexplained"], 0.0)))
             findings += 1
         elif state == "unresolved":
             review += 1
@@ -240,8 +244,8 @@ def overview(db: Session = Depends(get_db)):
     return {
         "open_cases": n,
         "exposure_total": round(exposure, 2),
-        "explained_total": round(explained, 2),
-        "apparent_gap_total": round(apparent, 2),
+        "difference_total": round(differences, 2),
+        "accounted_total": round(accounted, 2),
         "auto_clearable": supported,
         "auto_clearable_pct": round(supported / n, 4) if n else 0.0,
         "needs_action": findings + review,
@@ -313,7 +317,7 @@ def get_case(case_id: str, db: Session = Depends(get_db)):
 
 @router.get("/cases/{case_id}/reconcile")
 def reconcile(case_id: str, db: Session = Depends(get_db)):
-    """Run the deterministic reconstruction + bridge and return the residual + waterfall."""
+    """Qualify the e-invoice lines, sum what belongs to this box, and compare with the return."""
     try:
         return reconcile_case(db, case_id)
     except ValueError as e:
@@ -502,7 +506,7 @@ def demo_response_file():
 
 
 # ---------------------------------------------------------------- AI layer (Phase 2)
-@router.get("/cases/{case_id}/narrate")           # FEATURE 1 — bridge narration (verified prose)
+@router.get("/cases/{case_id}/narrate")           # FEATURE 1 — box narration (verified prose)
 def narrate(case_id: str, db: Session = Depends(get_db)):
     recon = reconcile_case(db, case_id, persist=False)
     return llm.narrate(recon, _rule_rows(db))

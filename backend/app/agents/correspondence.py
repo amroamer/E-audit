@@ -197,16 +197,22 @@ def verdict_facts(case, taxpayer, recon, investigation=None) -> str:
         f"Box reviewed: {recon.get('box_title') or recon.get('box')}",
         f"Outcome: {VERDICT_HEAD.get(recon['state'], recon['state'])}",
         f"Declared: SAR {recon['declared']:,.2f}",
-        f"Supported by the qualified e-invoice evidence: SAR {recon['expected_vat']:,.2f}",
-        f"Unexplained difference: SAR {abs(recon['residual']):,.2f}",
+        f"Qualifying e-invoices for the period total: SAR {recon['expected_vat']:,.2f}",
+        f"Difference: SAR {abs(recon['difference']):,.2f}",
+        f"Still unaccounted for: SAR {abs(recon['unexplained']):,.2f}",
         f"Materiality applied: SAR {recon['materiality']:,.2f}",
-        "Differences accounted for:",
+        "Documents the rules placed outside this return:",
     ]
-    for b in recon.get("bridge", []):
-        if b.get("rule"):
-            lines.append(f"  - {b['rule']}: {b['label']} — SAR {abs(b['amount']):,.2f}")
-    if not any(b.get("rule") for b in recon.get("bridge", [])):
+    steps = [f for f in recon.get("funnel", []) if f.get("rule")]
+    for f in steps:
+        lines.append(f"  - {f['rule']}: {f['label']} — {f['count']} document(s), "
+                     f"SAR {abs(f['amount']):,.2f}")
+    if not steps:
         lines.append("  - none")
+    if recon.get("evidence"):
+        lines.append("Accounted for by evidence you supplied:")
+        for e in recon["evidence"]:
+            lines.append(f"  - {e['label']} — SAR {e['amount']:,.2f}")
     if investigation and investigation.get("conclusion"):
         lines.append(f"Reviewer's conclusion: {investigation['conclusion']}")
     return "\n".join(lines)
@@ -214,7 +220,7 @@ def verdict_facts(case, taxpayer, recon, investigation=None) -> str:
 
 def fb_verdict(case, taxpayer, recon, investigation=None) -> str:
     """The verdict letter, written deterministically."""
-    residual = abs(float(recon["residual"]))
+    unexplained = abs(float(recon["unexplained"]))
     state = recon["state"]
     body = [
         f"{taxpayer.name}",
@@ -228,12 +234,18 @@ def fb_verdict(case, taxpayer, recon, investigation=None) -> str:
         f"{_period(case)}. This letter sets out the outcome.",
         "",
     ]
-    explained = [b for b in recon.get("bridge", []) if b.get("rule")]
-    if explained:
-        body.append("The following differences between the return and the e-invoices issued in "
-                    "the period have been accounted for:")
-        for b in explained:
-            body.append(f"  - {b['label']} (SAR {abs(b['amount']):,.2f})")
+    steps = [f for f in recon.get("funnel", []) if f.get("rule")]
+    if steps:
+        body.append("In arriving at that view, the following documents were treated as falling "
+                    "outside this return:")
+        for f in steps:
+            body.append(f"  - {f['label']}: {f['count']} document(s), "
+                        f"SAR {abs(f['amount']):,.2f}")
+        body.append("")
+    if recon.get("evidence"):
+        body.append("The evidence you supplied accounted for:")
+        for e in recon["evidence"]:
+            body.append(f"  - {e['label']} (SAR {e['amount']:,.2f})")
         body.append("")
 
     if state == "supported":
@@ -244,14 +256,14 @@ def fb_verdict(case, taxpayer, recon, investigation=None) -> str:
         ]
     elif state == "unresolved":
         body += [
-            f"A difference of SAR {residual:,.2f} remains, and on the evidence available it "
+            f"A difference of SAR {unexplained:,.2f} remains, and on the evidence available it "
             f"appears to be in your favour. Before the review can be closed, please confirm "
             f"the figures declared for the period, or provide the further explanation set out "
             f"in any accompanying request.",
         ]
     else:
         body += [
-            f"A difference of SAR {residual:,.2f} remains unexplained, against a materiality "
+            f"A difference of SAR {unexplained:,.2f} remains unexplained, against a materiality "
             f"threshold of SAR {float(recon['materiality']):,.2f}. This is a proposed position "
             f"and not an assessment.",
             "",

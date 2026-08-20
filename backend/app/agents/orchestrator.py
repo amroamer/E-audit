@@ -45,12 +45,12 @@ def investigate(recon: dict, *, prior_returns: list[dict] | None = None,
         entries.append(Entry(seq=seq, round=round_, kind=kind, agent=agent, payload=payload))
 
     # ---- round 0: the engine publishes the facts the agents may reason over
-    residual = recon["residual"]
+    difference = recon["unexplained"]   # what the investigation has to account for
     add(0, "fact", "Engine", {
         "declared": recon["declared"], "expected": recon["expected_vat"],
-        "difference": residual, "materiality": recon["materiality"],
+        "difference": difference, "materiality": recon["materiality"],
         "state": recon["state"],
-        "input_residual": recon["purchase"]["residual"],
+        "input_unexplained": recon["purchase"]["unexplained"],
         "deferred_out": recon.get("deferred_out", {}),
     })
 
@@ -60,7 +60,7 @@ def investigate(recon: dict, *, prior_returns: list[dict] | None = None,
     # One exception: the auditor-error recomputation (§7) is a check on our own working, and a
     # case that looks supported *because* a figure was transcribed wrongly is exactly the case
     # that must not be waved through. If there is anything to recompute, the machinery runs.
-    if (abs(residual) <= recon["materiality"]
+    if (abs(difference) <= recon["materiality"]
             and recon["purchase"]["state"] != "potential-finding"
             and not recomputation(ctx)):
         conclusion = ("The declared return is supported by the qualified e-invoice evidence "
@@ -109,7 +109,7 @@ def investigate(recon: dict, *, prior_returns: list[dict] | None = None,
     # ---- round 3: the challenger attacks the leader, so we do not converge too early
     if leading is not None:
         rivals = [a for a in explanatory if a.hypothesis_id != leading.hypothesis_id]
-        shortfall = round(abs(residual) - abs(leading.amount), 2)
+        shortfall = round(abs(difference) - abs(leading.amount), 2)
         if rivals:
             add(3, "objection", CHALLENGER, {
                 "against": leading.hypothesis_id,
@@ -120,7 +120,7 @@ def investigate(recon: dict, *, prior_returns: list[dict] | None = None,
             add(3, "objection", CHALLENGER, {
                 "against": leading.hypothesis_id,
                 "note": (f"The leading hypothesis accounts for {_sar(leading.amount)} of a "
-                         f"{_sar(residual)} difference, leaving {_sar(shortfall)} unaccounted "
+                         f"{_sar(difference)} difference, leaving {_sar(shortfall)} unaccounted "
                          f"for — above materiality. It cannot be the whole story.")})
         else:
             add(3, "objection", CHALLENGER, {
@@ -135,9 +135,9 @@ def investigate(recon: dict, *, prior_returns: list[dict] | None = None,
 
     # ---- round 4: conclusion
     explained = round(abs(leading.amount) if leading else 0.0, 2)
-    unexplained = round(abs(residual) - explained, 2)
+    unexplained = round(abs(difference) - explained, 2)
     if leading is None:
-        conclusion = (f"No tested pattern explains the {_sar(residual)} difference. Escalate to "
+        conclusion = (f"No tested pattern explains the {_sar(unexplained)} difference. Escalate to "
                       f"the auditor with the ranked hypotheses for a manual line review.")
         if context:
             conclusion += " Supporting context: " + " ".join(a.explanation for a in context)

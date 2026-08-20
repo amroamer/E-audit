@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 
 
 class NextBestAction(BaseModel):
-    """Feature 2 — the single minimal evidence request for the residual."""
+    """Feature 2 — the single minimal evidence request for the unexplained difference."""
 
     action_type: Literal[
         "request-document", "request-reconciliation", "request-explanation",
@@ -14,7 +14,7 @@ class NextBestAction(BaseModel):
     ]
     document_requested: str = Field(
         description="The specific evidence to ask for, plain language. "
-        "No digits — use a placeholder token (e.g. {{residual}}) if a value is unavoidable.")
+        "No digits — use a placeholder token (e.g. {{unexplained}}) if a value is unavoidable.")
     addressed_to: Literal["taxpayer", "tax-representative", "internal-review"]
     rationale: str = Field(description="Why this is the minimal step. Language only, no digits.")
     expected_yield: str = Field(
@@ -30,7 +30,7 @@ class LetterExtraction(BaseModel):
     DRAFT — the auditor confirms (and may edit) the SAR value before it is committed as a response.
     """
 
-    explains_gap: bool = Field(description="True if the letter plausibly explains part of the output-VAT residual.")
+    explains_gap: bool = Field(description="True if the letter plausibly explains part of the output-VAT difference.")
     category: Literal[
         "credit-notes", "timing", "prior-period", "zero-rated-or-exempt", "exports", "other", "none",
     ] = Field(description="The kind of explanation the taxpayer is offering.")
@@ -38,7 +38,7 @@ class LetterExtraction(BaseModel):
     quote: str = Field(description="The single most relevant sentence copied VERBATIM from the letter (≤200 chars).")
     proposed_amount: float = Field(
         description="The SAR figure the LETTER states this accounts for. 0 if the letter states no explicit amount. "
-        "Never invent, estimate, or copy the residual.")
+        "Never invent, estimate, or copy the difference.")
     confidence: Literal["high", "medium", "low"] = Field(description="Confidence that the letter supports this amount.")
     caveat: str = Field(description="What the auditor must still verify before accepting this (evidence required).")
 

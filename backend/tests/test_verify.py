@@ -2,32 +2,32 @@ from app.llm.verify import verify_claims, verify_conclusion
 
 HERO = {
     "case_id": "C-001", "taxpayer": "Acme Trading Co.", "box": "Standard-rated sales VAT",
-    "declared": 2000000, "reconstructed_gross": 2480000, "apparent_gap": 480000,
-    "explained_total": 405000, "explained_pct": 0.8438, "residual": 75000,
+    "declared": 2000000, "expected_vat": 2075000, "expected_base": 13833333.33,
+    "difference": 75000, "evidence_total": 0, "evidence": [], "unexplained": 75000,
     "materiality": 10000, "band": "material", "state": "potential-finding",
-    "invoices_considered": 27,
-    "bridge": [
-        {"seq": 0, "kind": "anchor", "rule": None, "label": "Declared (as filed)",
-         "amount": 2000000, "running": 2000000},
-        {"seq": 1, "kind": "gap", "rule": None, "label": "Reconstructed from e-invoices",
-         "amount": 480000, "running": 2480000},
-        {"seq": 2, "kind": "explain", "rule": "COR-01",
-         "label": "Credit notes (381) already applied in the return",
-         "amount": -305000, "running": 2175000},
-        {"seq": 3, "kind": "explain", "rule": "TIM-04",
-         "label": "Clearance lag", "amount": -100000, "running": 2075000},
-        {"seq": 4, "kind": "residual", "rule": None, "label": "Unexplained residual",
-         "amount": 75000, "running": 2075000},
+    "invoices_considered": 27, "population_lines": 27, "counted_lines": 25,
+    "funnel": [
+        {"seq": 0, "kind": "population", "rule": None, "label": "Sale e-invoices on file",
+         "count": 27, "amount": 2175000},
+        {"seq": 1, "kind": "defer", "rule": "OUT-07",
+         "label": "Clearance lag — invoices delivered in the next period",
+         "count": 2, "amount": 100000},
+        {"seq": 2, "kind": "qualified", "rule": None, "label": "Qualify for Jan – Mar 2025",
+         "count": 25, "amount": 2075000},
+    ],
+    "composition": [
+        {"type_code": 388, "label": "Tax invoices", "count": 20, "amount": 2380000},
+        {"type_code": 381, "label": "Credit notes", "count": 5, "amount": -305000},
     ],
 }
-CLEAN = {**HERO, "residual": 0, "state": "supported", "band": "immaterial", "explained_pct": 1.0}
+CLEAN = {**HERO, "difference": 0, "unexplained": 0, "state": "supported", "band": "immaterial"}
 
 
 def test_placeholder_prose_passes():
-    txt = ("Reconstructed output VAT ({{reconstructed_gross}}) exceeds declared "
-           "({{declared}}) — a gap of {{apparent_gap}}. COR-01 credit notes (381) of "
-           "{{bridge.COR-01}} and TIM-04 clearance lag of {{bridge.TIM-04}} explain "
-           "{{explained_pct}}, leaving a residual of {{residual}}.")
+    txt = ("Of {{population_count}} sale lines on file, OUT-07 places {{step.OUT-07.count}} "
+           "carrying {{step.OUT-07}} in the next period. The {{qualifying_count}} that qualify "
+           "total {{expected}} against {{declared}} declared — a difference of {{difference}}, "
+           "of which {{unexplained}} is unaccounted for.")
     assert verify_claims(txt, HERO)["ok"] is True
 
 

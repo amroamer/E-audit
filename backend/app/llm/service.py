@@ -8,7 +8,7 @@ Four features, one class:
 
 Division of labour (NON-NEGOTIABLE): recon_engine.reconcile_case computes EVERY
 number. Claude writes LANGUAGE ONLY and emits figures ONLY as placeholder tokens
-({{residual}}, {{bridge.COR-01}}, ...). verify_claims/verify_conclusion validate the
+({{difference}}, {{step.OUT-07}}, ...). verify_claims/verify_conclusion validate the
 output against the recon dict BEFORE anything is shown; render_placeholders then
 substitutes the engine's exact values.
 
@@ -170,7 +170,7 @@ class LLMService:
 
     # ------------------------------------------------- FEATURE 2: NEXT-BEST-ACTION
     def next_best_action(self, recon: dict, rules: list) -> dict:
-        immaterial = recon["state"] == "supported" or abs(recon["residual"]) <= recon["materiality"]
+        immaterial = recon["state"] == "supported" or abs(recon["unexplained"]) <= recon["materiality"]
 
         enabled, reason = availability()
         if not enabled:
