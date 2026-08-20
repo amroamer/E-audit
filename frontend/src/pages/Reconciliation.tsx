@@ -10,29 +10,54 @@ import CaseTabs from "../components/CaseTabs";
 import LifecycleRail from "../components/LifecycleRail";
 import TaxpayerResponsePanel from "../components/TaxpayerResponsePanel";
 
-interface BridgeStep {
+/** One step in the narrowing from the population to the qualifying set.
+ *  `population` and `qualified` are the two ends; every step between them is a rule that
+ *  removed documents. Nothing here is a movement of money — `amount` is the tax the
+ *  documents carry, reported so the auditor can see the size of what was set aside. */
+interface FunnelStep {
   seq: number;
-  kind: string;
+  kind: "population" | "exclude" | "defer" | "qualified";
   rule: string | null;
+  stage?: string;
+  label: string;
+  count: number;
+  amount: number;
+  detail?: Detail;
+}
+interface CompositionRow {
+  type_code: number;
+  label: string;
+  count: number;
+  amount: number;
+  detail?: Detail;
+}
+interface EvidenceRow {
+  code: string;
   label: string;
   amount: number;
-  running: number;
+  doc_name: string;
   detail?: Detail;
 }
 type Detail = Record<string, any>;
 interface BoxResult {
   box: string;
   declared: number;
-  reconstructed_gross: number;
-  apparent_gap: number;
-  explained_total: number;
-  explained_pct: number | null;
-  residual: number;
+  expected_vat: number;
+  expected_base: number;
+  difference: number;
+  evidence_total: number;
+  evidence: EvidenceRow[];
+  unexplained: number;
   materiality: number;
   band: string;
   state: string;
-  bridge: BridgeStep[];
+  funnel: FunnelStep[];
+  composition: CompositionRow[];
+  declared_detail?: Detail;
+  difference_detail?: Detail;
   invoices_considered: number;
+  population_lines: number;
+  counted_lines: number;
   evidence_invoices: Detail[];
 }
 interface Combined {
@@ -40,8 +65,8 @@ interface Combined {
   state: string;
   output_state: string;
   input_state: string;
-  output_residual: number;
-  input_residual: number;
+  output_unexplained: number;
+  input_unexplained: number;
   finding_boxes: string[];
 }
 interface Recon extends BoxResult {
@@ -50,7 +75,6 @@ interface Recon extends BoxResult {
   purchase?: BoxResult;
   combined?: Combined;
 }
-type Row = { title: string; rule?: string | null; kind: string; start: number; end: number; amount: number; detail?: Detail };
 
 const sar = (n: number) => "SAR " + Math.abs(n).toLocaleString("en-US", { maximumFractionDigits: 0 });
 
@@ -213,53 +237,131 @@ function DetailBody({ detail, amount }: { detail?: Detail; amount?: number }) {
   );
 }
 
-function Waterfall({ d, open }: { d: BoxResult; open: (title: string, detail?: Detail, amount?: number) => void }) {
-  const max = Math.max(d.reconstructed_gross, d.declared, 1);
-  const anchorStep = d.bridge.find((b) => b.kind === "anchor");
-  const gapStep = d.bridge.find((b) => b.kind === "gap");
-  const residualStep = d.bridge.find((b) => b.kind === "residual");
-  const explains = d.bridge
-    .filter((b) => b.kind === "explain")
-    .map((b) => {
-      const idx = d.bridge.findIndex((x) => x.seq === b.seq);
-      return { rule: b.rule, label: b.label, amount: b.amount, detail: b.detail, before: d.bridge[idx - 1].running, after: b.running };
-    });
-  const rows: Row[] = [
-    { title: "Reconstructed from e-invoices", kind: "recon", start: 0, end: d.reconstructed_gross, amount: d.reconstructed_gross, detail: gapStep?.detail },
-    ...explains.map((e) => ({ title: e.label, rule: e.rule, kind: "explain", start: e.after, end: e.before, amount: e.amount, detail: e.detail })),
-    { title: "Declared by the taxpayer", kind: "declared", start: 0, end: d.declared, amount: d.declared, detail: anchorStep?.detail },
-    { title: "Unexplained residual", kind: "residual", start: d.declared, end: d.declared + d.residual, amount: d.residual, detail: residualStep?.detail },
-  ];
+/** How the population narrowed to the qualifying set.
+ *
+ *  This replaces a waterfall, and the difference is the whole point. A waterfall starts
+ *  from a total and walks deductions to another total — which forced the page to invent a
+ *  "before" figure that included documents the rules put in another period and excluded
+ *  documents the rules admit. It corresponded to nothing, and it taught the auditor that
+ *  clearance lag is money being subtracted rather than invoices that were never in the
+ *  period.
+ *
+ *  A funnel says what actually happened: this many documents, these rules removed these
+ *  ones for these reasons, this many are left, and they total this. The bars measure
+ *  documents, not money.
+ */
+function Funnel({ d, open }: { d: BoxResult; open: (title: string, detail?: Detail, amount?: number) => void }) {
+  const start = d.funnel.find((f) => f.kind === "population");
+  const endStep = d.funnel.find((f) => f.kind === "qualified");
+  const steps = d.funnel.filter((f) => f.kind === "exclude" || f.kind === "defer");
+  const max = Math.max(start?.count ?? 1, 1);
+
+  const row = (f: FunnelStep, remaining: number) => (
+    <div
+      className={"frow clickable " + f.kind}
+      key={f.seq}
+      role="button"
+      tabIndex={0}
+      onClick={() => open(f.label, f.detail, f.amount)}
+      onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && open(f.label, f.detail, f.amount)}
+    >
+      <div className="fcount">
+        {f.kind === "exclude" || f.kind === "defer" ? "−" : ""}
+        {f.count}
+      </div>
+      <div className="flbl">
+        {f.rule && <span className="rc">{f.rule}</span>}
+        {f.label}
+        <span className="rowhint">›</span>
+      </div>
+      <div className="ftrack">
+        <div className={"fbar " + f.kind} style={{ width: (remaining / max) * 100 + "%" }} />
+      </div>
+      <div className={"famt " + f.kind}>{sar(f.amount)}</div>
+    </div>
+  );
+
+  let remaining = start?.count ?? 0;
   return (
-    <div className="bridge">
-      {rows.map((r, i) => {
-        const left = (Math.min(r.start, r.end) / max) * 100;
-        const width = Math.max((Math.abs(r.end - r.start) / max) * 100, 0.5);
-        const sign = r.amount < 0 ? "−" : r.kind === "residual" && r.amount > 0 ? "+" : "";
-        return (
-          <div
-            className="brow clickable"
-            key={i}
-            role="button"
-            tabIndex={0}
-            onClick={() => open(r.title, r.detail, r.amount)}
-            onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && open(r.title, r.detail, r.amount)}
-          >
-            <div className="lbl">
-              {r.rule && <span className="rc">{r.rule}</span>}
-              {r.title}
-              <span className="rowhint">›</span>
-            </div>
-            <div className="track">
-              <div className={"bar " + r.kind} style={{ left: left + "%", width: width + "%" }} />
-            </div>
-            <div className={"amt " + r.kind}>
-              {sign}
-              {sar(r.amount)}
-            </div>
-          </div>
-        );
+    <div className="funnel">
+      {start && row(start, remaining)}
+      {steps.map((f) => {
+        remaining -= f.count;
+        return row(f, remaining);
       })}
+      {endStep && row(endStep, endStep.count)}
+      {d.composition.length > 0 && (
+        <div className="fcomp">
+          {d.composition.map((c) => (
+            <button
+              key={c.type_code}
+              className="fchip"
+              onClick={() => open(c.label, c.detail, c.amount)}
+            >
+              <b>{c.count}</b> {c.label.toLowerCase()}
+              <span className={c.amount < 0 ? "neg" : ""}>
+                {c.amount < 0 ? "−" : ""}
+                {sar(c.amount)}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Expected vs declared, and what is left. Three figures and a subtraction. */
+function Compare({ d, open }: { d: BoxResult; open: (title: string, detail?: Detail, amount?: number) => void }) {
+  const risky = d.state === "potential-finding";
+  return (
+    <div className="compare">
+      <button className="cmp" onClick={() => open("Qualifying e-invoices", d.funnel.find((f) => f.kind === "qualified")?.detail, d.expected_vat)}>
+        <span className="cl">Expected</span>
+        <span className="cn">{sar(d.expected_vat)}</span>
+        <span className="cs">{d.counted_lines} qualifying documents</span>
+      </button>
+      <span className="cop">−</span>
+      <button className="cmp" onClick={() => open("Declared by the taxpayer", d.declared_detail, d.declared)}>
+        <span className="cl">Declared</span>
+        <span className="cn">{sar(d.declared)}</span>
+        <span className="cs">as filed</span>
+      </button>
+      <span className="cop">=</span>
+      <button
+        className={"cmp result " + (risky ? "risk" : d.state === "supported" ? "ok" : "warn")}
+        onClick={() => open("Difference", d.difference_detail, d.difference)}
+      >
+        <span className="cl">Difference</span>
+        <span className="cn">
+          {d.difference < 0 ? "−" : ""}
+          {sar(d.difference)}
+        </span>
+        <span className="cs">{STATE_LABEL[d.state] || d.state}</span>
+      </button>
+    </div>
+  );
+}
+
+/** Taxpayer evidence — the only thing that can account for a difference after the fact. */
+function Evidence({ d, open }: { d: BoxResult; open: (title: string, detail?: Detail, amount?: number) => void }) {
+  if (!d.evidence?.length) return null;
+  return (
+    <div className="evidence">
+      <h4>Accounted for by taxpayer evidence</h4>
+      {d.evidence.map((e) => (
+        <button key={e.code} className="erow" onClick={() => open(e.label, e.detail, e.amount)}>
+          <span className="rc">{e.code}</span>
+          <span className="elbl">{e.label}</span>
+          <span className="eamt">−{sar(e.amount)}</span>
+        </button>
+      ))}
+      <div className="erow total">
+        <span className="elbl">Still unexplained</span>
+        <span className="eamt" style={{ color: d.state === "supported" ? "var(--low)" : "var(--high)" }}>
+          {sar(d.unexplained)}
+        </span>
+      </div>
     </div>
   );
 }
@@ -315,7 +417,7 @@ export default function Reconciliation() {
         <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
           {inputFinding && d.combined && (
             <span className="pill pri-high" style={{ fontSize: 12, padding: "5px 12px" }} title="Input-VAT over-claim on the purchases box">
-              + input over-claim {sar(d.combined.input_residual)}
+              + input over-claim {sar(d.combined.input_unexplained)}
             </span>
           )}
           <span className={"pill " + (STATE_CLASS[cstate] || "status")} style={{ fontSize: 13, padding: "6px 14px" }}>
@@ -331,23 +433,26 @@ export default function Reconciliation() {
 
       <div className="tiles">
         <div className="tile">
+          <div className="tn">{d.counted_lines}</div>
+          <div className="tl">Documents that qualify</div>
+          <div className="tnote">of {d.population_lines} on file</div>
+        </div>
+        <div className="tile">
+          <div className="tn">{sar(d.expected_vat)}</div>
+          <div className="tl">Expected output VAT</div>
+          <div className="tnote">what qualifies, summed</div>
+        </div>
+        <div className="tile">
           <div className="tn">{sar(d.declared)}</div>
           <div className="tl">Declared output VAT</div>
           <div className="tnote">as filed</div>
         </div>
         <div className="tile">
-          <div className="tn" style={{ color: "var(--med)" }}>{sar(d.apparent_gap)}</div>
-          <div className="tl">Apparent gap vs e-invoices</div>
-          <div className="tnote">before explanation</div>
-        </div>
-        <div className="tile">
-          <div className="tn">{d.explained_pct != null ? Math.round(d.explained_pct * 100) : 0}%</div>
-          <div className="tl">Explained by rules</div>
-          <div className="tnote">{sar(d.explained_total)}</div>
-        </div>
-        <div className="tile">
-          <div className="tn" style={{ color: d.residual > 0 ? "var(--high)" : "var(--low)" }}>{sar(d.residual)}</div>
-          <div className="tl">Unexplained residual</div>
+          <div className="tn" style={{ color: d.unexplained !== 0 ? "var(--high)" : "var(--low)" }}>
+            {d.unexplained < 0 ? "−" : ""}
+            {sar(d.unexplained)}
+          </div>
+          <div className="tl">{d.evidence_total ? "Still unexplained" : "Difference"}</div>
           <div className="tnote">{d.band}</div>
         </div>
       </div>
@@ -356,25 +461,28 @@ export default function Reconciliation() {
 
       <div className="panel">
         <div className="panel-head">
-          <h2>Reconciliation bridge — {d.box}</h2>
+          <h2>Which documents belong in {d.box}</h2>
           <button
             className="linklike"
-            onClick={() => open("Reconstructed e-invoices", { type: "invoice-list", invoices: d.evidence_invoices, count: d.invoices_considered, note: "All cleared sale e-invoices used to reconstruct this box." })}
+            onClick={() => open("E-invoices on file", { type: "invoice-list", invoices: d.evidence_invoices, count: d.invoices_considered, note: "Every sale e-invoice held for this taxpayer, before any rule is applied." })}
           >
-            {d.invoices_considered} e-invoices reconstructed ›
+            {d.invoices_considered} e-invoices on file ›
           </button>
         </div>
-        <Waterfall d={d} open={open} />
+        <Funnel d={d} open={open} />
+        <Compare d={d} open={open} />
+        <Evidence d={d} open={open} />
         <div className="bridge-foot">
-          <span className="ct">∑ computed</span> Every figure is reconstructed deterministically from cleared e-invoices —
-          no AI in the numbers. Click any line to see the invoices, rule, and computation behind it.
+          <span className="ct">∑ computed</span> The rules decide which documents belong in this box and this period;
+          the qualifying ones are then summed. Nothing is totalled and later adjusted, so there is no figure here
+          &ldquo;before&rdquo; the rules. Click any line for the documents behind it.
         </div>
       </div>
 
       {d.purchase && (
         <div className="panel">
           <div className="panel-head">
-            <h2>Input VAT bridge — standard-rated purchases</h2>
+            <h2>Which documents belong in standard-rated purchases</h2>
             <span
               className={"pill " + (STATE_CLASS[d.purchase.state] || "status")}
               style={{ fontSize: 12, padding: "5px 12px" }}
@@ -382,31 +490,20 @@ export default function Reconciliation() {
               {STATE_LABEL[d.purchase.state] || d.purchase.state}
             </span>
           </div>
-          <div className="minibar">
-            <span>
-              Declared input <b>{sar(d.purchase.declared)}</b>
-            </span>
-            <span>
-              Reconstructed <b>{sar(d.purchase.reconstructed_gross)}</b>
-            </span>
-            <span>
-              Residual{" "}
-              <b style={{ color: d.purchase.state === "potential-finding" ? "var(--high)" : "var(--low)" }}>
-                {sar(d.purchase.residual)}
-              </b>
-            </span>
-          </div>
-          <Waterfall d={d.purchase} open={open} />
+          <Funnel d={d.purchase} open={open} />
+          <Compare d={d.purchase} open={open} />
+          <Evidence d={d.purchase} open={open} />
           <div className="bridge-foot">
-            <span className="ct">∑ computed</span> Input VAT rebuilt from cleared purchase e-invoices. On this box an
-            over-claim — declaring more input VAT than the invoices support — is the revenue risk.
+            <span className="ct">∑ computed</span> The same order on the purchases side. Here an over-claim — declaring
+            more input VAT than the qualifying invoices support — is the revenue risk, so a negative difference is the
+            one to look at.
           </div>
         </div>
       )}
 
       <InvestigationPanel id={id} rev={rev} />
       <NextBestAction id={id} rev={rev} />
-      <TaxpayerResponsePanel id={id} residual={d.residual} onChanged={() => setRev((r) => r + 1)} />
+      <TaxpayerResponsePanel id={id} difference={d.unexplained} onChanged={() => setRev((r) => r + 1)} />
       <AuditReport id={id} rev={rev} />
       <VerdictLetter id={id!} />
 

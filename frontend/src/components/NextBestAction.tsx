@@ -22,7 +22,7 @@ export default function NextBestAction({ id, rev }: { id?: string; rev?: number 
         {!d ? (
           <span className="muted">Deciding…</span>
         ) : d.action_type === "no-action" ? (
-          <p className="muted">No action — residual within materiality. {d.rationale}</p>
+          <p className="muted">No action — the difference is within materiality. {d.rationale}</p>
         ) : (
           <>
             <div className="nba-top">

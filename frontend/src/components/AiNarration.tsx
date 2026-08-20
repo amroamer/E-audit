@@ -14,7 +14,7 @@ export default function AiNarration({ id, rev }: { id?: string; rev?: number }) 
       <div className="panel-head">
         <div className="ai-h">
           <span className="ai-chip">AI</span>
-          <h2>Why the gap exists</h2>
+          <h2>What qualifies, and how it compares</h2>
         </div>
         <VerifyBadge source={d ? d.source : null} violations={d?.violations} />
       </div>

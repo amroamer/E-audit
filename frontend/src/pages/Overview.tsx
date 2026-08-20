@@ -47,9 +47,9 @@ export default function Overview() {
           note: `${ov.findings} potential finding${ov.findings === 1 ? "" : "s"}`,
         },
         {
-          n: money(ov.explained_total),
-          l: "Differences explained automatically",
-          note: "credit notes · timing · evidence",
+          n: money(ov.difference_total),
+          l: "Differences to account for",
+          note: "expected vs declared, across open cases",
         },
         {
           n: `${Math.round(ov.auto_clearable_pct * 100)}%`,

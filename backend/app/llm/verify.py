@@ -195,19 +195,28 @@ class StreamGuard:
 # ENGINE-AUTHORED trusted text — real digits are fine here and NOT passed through verify.
 def fb_narration(recon: dict) -> str:
     """The engine's own account of the box. Qualification first, then the comparison."""
-    steps = [s for s in recon.get("funnel", []) if s["kind"] in ("exclude", "defer")]
+    funnel = recon.get("funnel", [])
+    steps = [s for s in funnel if s["kind"] in ("exclude", "defer")]
+    source = next((s["label"].lower() for s in funnel if s["kind"] == "population"),
+                  "e-invoice lines on file")
     removed = "; ".join(
         f"{s['count']} for {s['label'].lower()}" + (f" ({s['rule']})" if s.get("rule") else "")
-        for s in steps) or "nothing"
+        for s in steps)
+    narrowing = (f"the rules set aside {removed}, leaving "
+                 f"{int(recon.get('counted_lines', 0))} that qualify for this period"
+                 if steps else
+                 f"every one qualifies for this period")
     ev = recon.get("evidence_total") or 0.0
-    tail = ("The two agree within materiality." if recon["state"] == "supported"
-            else f"That leaves {_sar(recon['unexplained'])} unexplained ({recon['band']}).")
-    ev_txt = (f" Taxpayer evidence accounts for {_sar(ev)} of it." if ev else "")
-    return (f"Of {int(recon.get('population_lines', 0))} {recon['box'].lower()} lines on file, "
-            f"the rules set aside {removed}, leaving {int(recon.get('counted_lines', 0))} that "
-            f"qualify for this period and total {_sar(recon['expected_vat'])}. The return "
-            f"declares {_sar(recon['declared'])}, a difference of "
-            f"{_sar(recon['difference'])}.{ev_txt} {tail}")
+    if recon["state"] == "supported" and not ev:
+        tail = "The two agree within materiality."
+    elif ev:
+        tail = (f"Taxpayer evidence accounts for {_sar(ev)} of it, leaving "
+                f"{_sar(recon['unexplained'])} ({recon['band']}).")
+    else:
+        tail = f"Nothing on file accounts for it ({recon['band']})."
+    return (f"Of {int(recon.get('population_lines', 0))} {source}, {narrowing}, "
+            f"totalling {_sar(recon['expected_vat'])}. The return declares "
+            f"{_sar(recon['declared'])}, a difference of {_sar(recon['difference'])}. {tail}")
 
 
 def fb_nba(recon: dict):

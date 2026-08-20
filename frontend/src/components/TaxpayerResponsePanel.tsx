@@ -13,11 +13,12 @@ const sar = (n: number) => "SAR " + Math.abs(n).toLocaleString("en-US", { maximu
 
 export default function TaxpayerResponsePanel({
   id,
-  residual,
+  difference,
   onChanged,
 }: {
   id?: string;
-  residual: number;
+  /** what is still unexplained — the amount evidence can account for */
+  difference: number;
   onChanged: () => void;
 }) {
   const [list, setList] = useState<Resp[]>([]);
@@ -71,9 +72,9 @@ export default function TaxpayerResponsePanel({
 
   const sample = () => {
     setLabel(
-      "Sales ledger provided by the taxpayer shows the residual relates to prior-period invoices already declared in an earlier return.",
+      "Sales ledger provided by the taxpayer shows the difference relates to prior-period invoices already declared in an earlier return.",
     );
-    setAmount(String(Math.max(0, Math.round(residual))));
+    setAmount(String(Math.max(0, Math.round(difference))));
     setDoc("sales_ledger_Q1-2025.xlsx");
   };
 
@@ -94,7 +95,7 @@ export default function TaxpayerResponsePanel({
     setLetterText(
       "Dear Sir/Madam,\n\nFurther to your enquiry regarding our Q1 2025 VAT return, we confirm that the " +
         "difference of SAR " +
-        Math.max(0, Math.round(residual)).toLocaleString("en-US") +
+        Math.max(0, Math.round(difference)).toLocaleString("en-US") +
         " between your reconstruction and our declared output VAT relates to standard-rated sales that were " +
         "invoiced and delivered in December 2024 and already declared in our prior-period (Q4 2024) return. " +
         "The clearance timestamps fell in early January 2025, which is why they appear in this period's e-invoice " +
@@ -193,7 +194,7 @@ export default function TaxpayerResponsePanel({
         )}
         <div className="resp-form">
           <input
-            placeholder="What the taxpayer provided (e.g. sales ledger showing the residual was already declared)"
+            placeholder="What the taxpayer provided (e.g. sales ledger showing the difference was already declared)"
             value={label}
             onChange={(e) => setLabel(e.target.value)}
           />

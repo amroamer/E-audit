@@ -12,7 +12,7 @@ export interface PriorityScore {
   score: number;
   band: string;
   driver: string;
-  residual: number;
+  at_stake: number;
   deadline_days: number | null;
   prior_findings: number;
   signals: { exposure: number; deadline: number; history: number; quickwin: number };
@@ -118,8 +118,8 @@ export interface Health {
 export interface ExecOverview {
   open_cases: number;
   exposure_total: number;
-  explained_total: number;
-  apparent_gap_total: number;
+  difference_total: number;
+  accounted_total: number;
   auto_clearable: number;
   auto_clearable_pct: number;
   needs_action: number;
