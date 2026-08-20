@@ -181,6 +181,34 @@ def draft_followup(case, taxpayer, req, gaps) -> dict:
 
 # --------------------------------------------------------------------------- closure (§8)
 
+def _finding_lines(findings) -> list[str]:
+    """Findings as letter lines, stating each amount once per piece of evidence.
+
+    Several of the Authority's statements can be true of one document at the same time — a
+    listing above the return is simultaneously "higher than declared", "not disclosed" and "does
+    not correspond". Printing the amount against each of them tells the taxpayer they owe it
+    three times. So the money is stated once, on the primary characterisation, and the others
+    follow as further descriptions of the same matter.
+    """
+    from .findings import grouped_by_basis, Finding
+
+    objs = [f if isinstance(f, Finding) else Finding(**{
+        k: v for k, v in f.items()
+        if k in ("code", "statement", "amount", "effect", "direction", "agent",
+                 "hypothesis_id", "basis", "why", "explanation", "detail")})
+        for f in findings]
+    lines: list[str] = []
+    for group in grouped_by_basis(objs):
+        members = group["findings"]
+        head, rest = members[0], members[1:]
+        amount = head["amount"]
+        lines.append(f"  - {head['statement']}"
+                     + (f" SAR {abs(amount):,.2f}." if amount else ""))
+        for other in rest:
+            lines.append(f"      Also characterised as: {other['statement']}")
+    return lines
+
+
 VERDICT_HEAD = {
     "supported": "No adjustment is proposed",
     "potential-finding": "A difference remains unexplained",
@@ -188,7 +216,7 @@ VERDICT_HEAD = {
 }
 
 
-def verdict_facts(case, taxpayer, recon, investigation=None) -> str:
+def verdict_facts(case, taxpayer, recon, investigation=None, findings=None) -> str:
     """The engine's conclusion, as the only things the letter may state."""
     lines = [
         f"Taxpayer: {taxpayer.name}",
@@ -213,12 +241,17 @@ def verdict_facts(case, taxpayer, recon, investigation=None) -> str:
         lines.append("Accounted for by evidence you supplied:")
         for e in recon["evidence"]:
             lines.append(f"  - {e['label']} — SAR {e['amount']:,.2f}")
+    if findings:
+        lines.append("Findings established on this review (state these verbatim, and only these; "
+                     "each amount is stated once and must not be repeated against another "
+                     "characterisation of the same matter):")
+        lines.extend(_finding_lines(findings))
     if investigation and investigation.get("conclusion"):
         lines.append(f"Reviewer's conclusion: {investigation['conclusion']}")
     return "\n".join(lines)
 
 
-def fb_verdict(case, taxpayer, recon, investigation=None) -> str:
+def fb_verdict(case, taxpayer, recon, investigation=None, findings=None) -> str:
     """The verdict letter, written deterministically."""
     unexplained = abs(float(recon["unexplained"]))
     state = recon["state"]
@@ -246,6 +279,11 @@ def fb_verdict(case, taxpayer, recon, investigation=None) -> str:
         body.append("The evidence you supplied accounted for:")
         for e in recon["evidence"]:
             body.append(f"  - {e['label']} (SAR {e['amount']:,.2f})")
+        body.append("")
+    if findings:
+        body.append("The following matters were established on review of the documents you "
+                    "supplied:")
+        body.extend(_finding_lines(findings))
         body.append("")
 
     if state == "supported":
@@ -275,12 +313,13 @@ def fb_verdict(case, taxpayer, recon, investigation=None) -> str:
     return "\n".join(body)
 
 
-def draft_verdict(case, taxpayer, recon, investigation=None) -> dict:
+def draft_verdict(case, taxpayer, recon, investigation=None, findings=None) -> dict:
     """Draft the taxpayer letter that reports the outcome. §8's second administrative burden.
 
     Same guard as the request letters, and the same reason for it: the letter states the
     Authority's position, so every figure in it has to be one the engine computed.
     """
-    facts = verdict_facts(case, taxpayer, recon, investigation)
-    return llm.draft_letter(kind="verdict", facts=facts,
-                            fallback=lambda: fb_verdict(case, taxpayer, recon, investigation))
+    facts = verdict_facts(case, taxpayer, recon, investigation, findings)
+    return llm.draft_letter(
+        kind="verdict", facts=facts,
+        fallback=lambda: fb_verdict(case, taxpayer, recon, investigation, findings))

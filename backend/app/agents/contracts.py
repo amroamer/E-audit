@@ -24,6 +24,16 @@ TestKind = Literal[
     "recurrence",             # this taxpayer has been found with this cause before
     "historical-magnitude",   # the declaration is out of line with this taxpayer's own history
     "recomputed-total",       # the figure the AUDITOR recorded vs the source documents (§7)
+    # --- tests over the documents the taxpayer sent, added with the post-receipt rescope
+    "invoice-conditions",     # rows that do not meet the conditions of a valid tax invoice
+    "credit-note-conditions",  # rows that do not meet the conditions of a valid credit note
+    "blocked-input",          # purchase rows in a category input VAT cannot be recovered on
+    "missing-support",        # claimed rows with no supporting document behind them
+    "listing-vs-declared",    # what the taxpayer's own listing totals, against the declared box
+    "secondary-activity",     # revenue from an activity the registration does not carry
+    "trial-balance-absent",   # the listing exceeds the return and no trial balance was supplied
+    "non-cooperation",        # items requested and never supplied
+    "auditor-figure",         # a figure the auditor recorded that the engine cannot reproduce
 ]
 
 Status = Literal["confirmed", "refuted", "insufficient-evidence"]
@@ -45,11 +55,22 @@ class TestSpec(BaseModel):
 
 
 class Hypothesis(BaseModel):
-    """A proposed root cause. `claim` is language only — it must carry no figures."""
+    """A proposed root cause. `claim` is language only — it must carry no figures.
+
+    `why` is the trigger: what the agent saw on the case file that made this worth testing. The
+    auditors have to defend a finding, and "the agent proposed it" is not a defence — so the
+    observation is recorded next to the claim and shown beside the verdict.
+
+    `outcome_code` is the entry in `app.outcomes` this becomes **if confirmed**. It is the only
+    route from an agent to report wording: the agent names a code, and the Authority's own
+    sentence is what gets written down.
+    """
 
     id: str
     agent: str
     claim: str
+    why: str = ""
+    outcome_code: str = ""
     reason_code: str = ""
     test: TestSpec
     evidence_refs: list[str] = Field(default_factory=list)
@@ -86,3 +107,8 @@ class Investigation(BaseModel):
     conclusion: str = ""
     unexplained: float = 0.0
     source: str = "deterministic"   # deterministic | claude | mixed
+    # Confirmed hypotheses that name an outcome, worded by `app.outcomes` and carrying the
+    # adjudicator's amount. This is what the report and the taxpayer letter are written from —
+    # an agent's own `claim` is exploratory language and never goes outbound.
+    findings: list[dict] = Field(default_factory=list)
+    exposure: dict = Field(default_factory=dict)

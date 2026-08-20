@@ -17,7 +17,9 @@ from __future__ import annotations
 
 from .adjudicator import CaseContext, adjudicate
 from .contracts import Adjudication, Entry, Hypothesis, Investigation
-from .detectors import propose, recomputation
+from .detectors import propose as propose_recon, recomputation
+from .roster import propose as propose_documents
+from .findings import from_investigation, exposure
 
 CASE_LEAD = "Case Lead"
 CHALLENGER = "Challenger"
@@ -32,10 +34,16 @@ def _sar(v: float) -> str:
 def investigate(recon: dict, *, prior_returns: list[dict] | None = None,
                 prior_cases: list[dict] | None = None,
                 documents: list[dict] | None = None,
-                recorded: list[dict] | None = None) -> Investigation:
+                recorded: list[dict] | None = None,
+                cr_activities: list[dict] | None = None,
+                calculations: list[dict] | None = None,
+                gaps: list[dict] | None = None,
+                requested: list[dict] | None = None) -> Investigation:
     ctx = CaseContext(recon=recon, prior_returns=prior_returns or [],
                       prior_cases=prior_cases or [],
-                      documents=documents or [], recorded=recorded or [])
+                      documents=documents or [], recorded=recorded or [],
+                      cr_activities=cr_activities or [], calculations=calculations or [],
+                      gaps=gaps or [], requested=requested or [])
     entries: list[Entry] = []
     seq = 0
 
@@ -62,7 +70,8 @@ def investigate(recon: dict, *, prior_returns: list[dict] | None = None,
     # that must not be waved through. If there is anything to recompute, the machinery runs.
     if (abs(difference) <= recon["materiality"]
             and recon["purchase"]["state"] != "potential-finding"
-            and not recomputation(ctx)):
+            and not recomputation(ctx)
+            and not propose_documents(ctx)):
         conclusion = ("The declared return is supported by the qualified e-invoice evidence "
                       "within materiality. There is no difference to investigate.")
         add(4, "conclusion", CASE_LEAD,
@@ -72,10 +81,11 @@ def investigate(recon: dict, *, prior_returns: list[dict] | None = None,
                              conclusion=conclusion, unexplained=0.0, source="deterministic")
 
     # ---- round 1: evidence agents propose (parallel fan-out; no interdependence)
-    hypotheses = propose(ctx)
+    hypotheses = propose_recon(ctx) + propose_documents(ctx)
     for h in hypotheses:
-        add(1, "hypothesis", h.agent, {"id": h.id, "claim": h.claim,
-                                       "test": h.test.describe(), "confidence": h.confidence})
+        add(1, "hypothesis", h.agent,
+            {"id": h.id, "claim": h.claim, "why": h.why, "test": h.test.describe(),
+             "confidence": h.confidence, "outcome_code": h.outcome_code})
 
     # ---- round 2: the adjudicator settles each one against engine data
     adjudications: list[Adjudication] = []
@@ -83,7 +93,8 @@ def investigate(recon: dict, *, prior_returns: list[dict] | None = None,
         a = adjudicate(h, ctx)
         adjudications.append(a)
         add(2, "adjudication", "Adjudicator",
-            {"id": h.id, "status": a.status, "amount": a.amount, "explanation": a.explanation})
+            {"id": h.id, "status": a.status, "amount": a.amount,
+             "explanation": a.explanation, "detail": a.detail})
 
     by_id = {h.id: h for h in hypotheses}
     confirmed = [a for a in adjudications if a.status == "confirmed"]
@@ -155,9 +166,11 @@ def investigate(recon: dict, *, prior_returns: list[dict] | None = None,
                                      "controls": [a.hypothesis_id for a in controls],
                                      "conclusion": conclusion})
 
+    found = from_investigation(hypotheses, adjudications)
     return Investigation(
         case_id=recon["case_id"], rounds=5, entries=entries,
         hypotheses=hypotheses, adjudications=adjudications,
         leading=leading.hypothesis_id if leading else None,
         conclusion=conclusion, unexplained=unexplained, source="deterministic",
+        findings=[f.to_dict() for f in found], exposure=exposure(found),
     )

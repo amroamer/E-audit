@@ -162,8 +162,19 @@ def investigate_case(case_id: str, db: Session = Depends(get_db)):
             select(TaxpayerResponse).where(TaxpayerResponse.case_id == case_id)
             .order_by(TaxpayerResponse.seq)).all()
     ]
+    # What the post-receipt agents reason over: the registration's activities (without which
+    # undisclosed secondary-activity revenue is undetectable), the figures the auditor has had
+    # checked, and whatever is still outstanding from the request.
+    activities = list(c.taxpayer.economic_activities or []) if c.taxpayer else []
+    calculations = calc_service.listing(db, case_id)
+    gaps = [
+        {"kind": g.kind, "item_label": g.item_label, "detail": g.detail,
+         "severity": g.severity}
+        for g in db.scalars(select(GapFinding).where(GapFinding.case_id == case_id)).all()
+    ]
     return investigate(recon, prior_returns=prior_returns, prior_cases=prior_cases,
-                       documents=docs, recorded=recorded).model_dump()
+                       documents=docs, recorded=recorded, cr_activities=activities,
+                       calculations=calculations, gaps=gaps).model_dump()
 
 
 class RulePatch(BaseModel):
@@ -492,8 +503,8 @@ def verdict(case_id: str, db: Session = Depends(get_db)):
 
     case = _case_or_404(db, case_id)
     recon = reconcile_case(db, case_id, persist=False)
-    inv = investigate(recon).model_dump()
-    return draft_verdict(case, case.taxpayer, recon, inv)
+    inv = investigate_case(case_id, db)
+    return draft_verdict(case, case.taxpayer, recon, inv, inv.get("findings"))
 
 
 @router.get("/demo/response-file")
@@ -632,3 +643,49 @@ def parse_request_email(case_id: str, body: EmailIn, db: Session = Depends(get_d
     _case_or_404(db, case_id)
     parsed = from_email.parse_email(body.text)
     return {**parsed.to_dict(), "catalog": from_email.catalog_choices()}
+
+
+# ============================================================ STEP EMAILS
+# The auditors asked for a draft at each point where something leaves the building. There are
+# two: the chase, written from the completeness gaps alone, and the verdict, written from the
+# confirmed findings. Both are drafts for a human to edit and send — nothing is sent from here.
+
+@router.get("/cases/{case_id}/emails")
+def step_emails(case_id: str, db: Session = Depends(get_db)):
+    """Every outbound draft that is live for this case, and which step each belongs to.
+
+    A draft appears only when its trigger exists: the chase when something is outstanding, the
+    verdict when the review has a position to report. Offering an email with nothing in it to
+    say would train the auditor to ignore the panel.
+    """
+    from ..agents.correspondence import draft_verdict
+
+    case = _case_or_404(db, case_id)
+    out: list[dict] = []
+
+    req = req_service.current_request(db, case_id)
+    gaps = list(db.scalars(select(GapFinding).where(GapFinding.case_id == case_id)).all())
+    if req is not None and gaps:
+        draft = draft_followup(case, case.taxpayer, req, gaps)
+        out.append({
+            "step": "response-check", "kind": "follow-up",
+            "title": "What is missing from the response",
+            "trigger": f"{len(gaps)} gap(s) found in what was received",
+            **draft,
+        })
+
+    inv = investigate_case(case_id, db)
+    recon = reconcile_case(db, case_id, persist=False)
+    findings = inv.get("findings") or []
+    if not gaps or findings:
+        draft = draft_verdict(case, case.taxpayer, recon, inv, findings)
+        out.append({
+            "step": "closure", "kind": "verdict",
+            "title": "Outcome of the review",
+            "trigger": (f"{len(findings)} finding(s) established" if findings
+                        else "no finding — the declared position is supported"),
+            **draft,
+        })
+
+    return {"case_id": case_id, "emails": out,
+            "findings": findings, "exposure": inv.get("exposure", {})}

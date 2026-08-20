@@ -26,6 +26,30 @@ class CaseContext:
     documents: list[dict] = field(default_factory=list)
     # figures the AUDITOR keyed in by hand: {seq, label, amount, doc_name}
     recorded: list[dict] = field(default_factory=list)
+    # --- added with the post-receipt rescope: what the agents reason over now that the
+    #     planning inputs are gone and the uploaded files are the evidence.
+    # the registration's economic activities: {isic, description, primary}
+    cr_activities: list[dict] = field(default_factory=list)
+    # auditor calculations already checked: {label, status, stated, computed, delta}
+    calculations: list[dict] = field(default_factory=list)
+    # outstanding completeness gaps: {kind, item_label, detail, severity}
+    gaps: list[dict] = field(default_factory=list)
+    # the confirmed request spec: {key, label, required_columns}
+    requested: list[dict] = field(default_factory=list)
+
+    def tabular(self) -> list[dict]:
+        return [d for d in self.documents if d.get("rows")]
+
+    def document_like(self, *fragments: str) -> dict | None:
+        """The uploaded document whose name suggests a kind — 'sales', 'purchase', 'trial'."""
+        for d in self.documents:
+            name = (d.get("filename") or "").lower()
+            if any(f in name for f in fragments):
+                return d
+        return None
+
+    def has_document_like(self, *fragments: str) -> bool:
+        return self.document_like(*fragments) is not None
 
     def box(self, which: str) -> dict:
         return self.recon if which == "output" else self.recon["purchase"]
@@ -248,7 +272,10 @@ def _recomputed_total(h: Hypothesis, ctx: CaseContext) -> Adjudication:
                      f"conclusion."))
 
 
+from .document_tests import TESTS as _DOCUMENT_TESTS   # noqa: E402  (needs Adjudication above)
+
 _TESTS = {
+    **_DOCUMENT_TESTS,
     "decimal-shift": _decimal_shift,
     "digit-transposition": _digit_transposition,
     "single-document": _single_document,
