@@ -7,8 +7,11 @@ from sqlalchemy.orm import Session
 from ..db import get_db
 from ..models import (
     Taxpayer, VatReturn, Invoice, AuditCase, Rule, TaxpayerResponse, EventLog, GapFinding,
+    AuditorCalculation,
 )
 from ..requests import service as req_service
+from ..requests import from_email
+from ..agents import calc_service
 from ..agents.correspondence import draft_followup, draft_request
 from ..recon_engine import reconcile_case
 from ..priority import score_case
@@ -558,3 +561,74 @@ def report(case_id: str, db: Session = Depends(get_db)):
     recon = reconcile_case(db, case_id)
     return StreamingResponse(llm.stream_report(recon, _rule_rows(db)),
                              media_type="text/event-stream")
+
+
+# ============================================================ THE CALCULATION AGENT
+# The auditors asked for help with their own arithmetic and for a check on it. Both run the same
+# executor: the model turns a described method into a query, Python computes the figure.
+
+class AskIn(BaseModel):
+    question: str = ""
+    spec: dict | None = None        # an auditor-specified query, used verbatim if supplied
+
+
+class CheckIn(BaseModel):
+    label: str
+    method: str = ""
+    stated_amount: float
+    document_name: str = ""
+    spec: dict | None = None
+
+
+@router.post("/cases/{case_id}/calc/ask")
+def calc_ask(case_id: str, body: AskIn, db: Session = Depends(get_db)):
+    """Answer a question off the uploaded documents. Every figure comes from Python."""
+    _case_or_404(db, case_id)
+    return calc_service.ask(db, case_id, body.question, body.spec)
+
+
+@router.post("/cases/{case_id}/calc/check")
+def calc_check(case_id: str, body: CheckIn, db: Session = Depends(get_db)):
+    """Record a figure the auditor calculated and verify it against the source documents."""
+    _case_or_404(db, case_id)
+    out = calc_service.check(db, case_id, body.label, body.method, body.stated_amount,
+                             body.spec, body.document_name)
+    db.add(EventLog(case_id=case_id, actor="auditor", action="calculation-checked",
+                    payload={"label": body.label, "status": out["status"],
+                             "delta": out["delta"]}))
+    db.commit()
+    return out
+
+
+@router.get("/cases/{case_id}/calc")
+def calc_list(case_id: str, db: Session = Depends(get_db)):
+    _case_or_404(db, case_id)
+    return {"calculations": calc_service.listing(db, case_id),
+            "documents": [{"filename": d["filename"], "columns": d["columns"],
+                           "row_count": d["row_count"]}
+                          for d in calc_service.documents_for(db, case_id)]}
+
+
+@router.delete("/cases/{case_id}/calc/{calc_id}")
+def calc_delete(case_id: str, calc_id: int, db: Session = Depends(get_db)):
+    _case_or_404(db, case_id)
+    db.execute(delete(AuditorCalculation).where(
+        AuditorCalculation.id == calc_id, AuditorCalculation.case_id == case_id))
+    db.commit()
+    return {"ok": True}
+
+
+# ============================================================ THE REQUEST EMAIL
+# Planning is out of scope, so the spec the completeness check enforces has to be recovered from
+# the email the auditor already sent. The parse is a proposal: nothing binds until it is confirmed.
+
+class EmailIn(BaseModel):
+    text: str
+
+
+@router.post("/cases/{case_id}/request-email/parse")
+def parse_request_email(case_id: str, body: EmailIn, db: Session = Depends(get_db)):
+    """Read the request email into a proposed spec, for the auditor to confirm or edit."""
+    _case_or_404(db, case_id)
+    parsed = from_email.parse_email(body.text)
+    return {**parsed.to_dict(), "catalog": from_email.catalog_choices()}

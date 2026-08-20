@@ -43,6 +43,45 @@ class LetterExtraction(BaseModel):
     caveat: str = Field(description="What the auditor must still verify before accepting this (evidence required).")
 
 
+class CalcFilter(BaseModel):
+    column: str = Field(description="Canonical column name, exactly as listed in the document's columns.")
+    op: Literal["eq", "ne", "gt", "gte", "lt", "lte", "between", "contains",
+                "is_blank", "not_blank"]
+    value: str | float | list[str | float] | None = Field(
+        default=None,
+        description="The comparison value. For 'between', a two-element list [low, high]. "
+        "Omit for is_blank / not_blank.")
+
+
+class CalcQuerySpec(BaseModel):
+    """Feature 7 — the auditor's arithmetic, turned into a question the engine can execute.
+
+    Claude's ONLY job here is translation: read what the auditor says they did and express it
+    in this closed algebra. It never computes the answer. Python runs the query over the
+    uploaded rows and produces the figure, so a model that misreads the method produces a
+    *wrong query the auditor can see*, never a wrong number wearing the engine's authority.
+    """
+
+    op: Literal["sum", "count", "count_distinct", "average", "max", "min"] = Field(
+        description="The aggregation the auditor performed.")
+    column: str = Field(
+        default="",
+        description="Canonical column it was performed on, exactly as listed in the document's "
+        "columns. Empty only for a plain row count.")
+    filters: list[CalcFilter] = Field(
+        default_factory=list, max_length=6,
+        description="The rows the auditor restricted to. Empty if they used every row.")
+    document: str = Field(
+        default="",
+        description="Filename of the document, exactly as supplied. Empty if only one was given.")
+    understood: str = Field(
+        description="One sentence restating the method in plain language, for the auditor to "
+        "confirm. Language only — no figures, no results.")
+    checkable: bool = Field(
+        description="False if the described method cannot be expressed in this algebra. Say so "
+        "rather than approximating it with a query that computes something else.")
+
+
 class TaxpayerSummary(BaseModel):
     """Feature 3 — short auditor brief. STRICTLY figure-free (PDPL + F14)."""
 

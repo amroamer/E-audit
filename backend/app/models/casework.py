@@ -23,7 +23,7 @@ from datetime import date, datetime
 from typing import Optional
 
 from sqlalchemy import (
-    String, Integer, Date, DateTime, Boolean, Text, ForeignKey, JSON, func,
+    String, Integer, Numeric, Date, DateTime, Boolean, Text, ForeignKey, JSON, func,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -137,4 +137,42 @@ class GapFinding(Base):
     detail: Mapped[str] = mapped_column(Text, default="")
     citation: Mapped[str] = mapped_column(String(200), default="")   # sheet!cell, page, column
     source: Mapped[str] = mapped_column(String(20), default="deterministic")  # or claude
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class AuditorCalculation(Base):
+    """A figure the auditor worked out themselves, and how they say they worked it out.
+
+    The auditors asked for a second pair of eyes on their own arithmetic, and the second half of
+    that request is the important one: without the **method**, a stated total can only be
+    compared against a total the engine chose to compute, which is not the same question. So
+    `method` is captured in the auditor's own words, parsed into an executable query, and the
+    query is stored beside the verdict — the record of what was checked, not merely that
+    something was.
+
+    A disagreement is a prompt to look, never a conclusion. `status` is one of agree / disagree
+    / not-checkable, and the last of those is a legitimate outcome: a method the closed algebra
+    cannot express is reported honestly rather than approximated by a query answering something
+    else.
+    """
+    __tablename__ = "auditor_calculation"
+    __table_args__ = {"schema": CORE}
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    case_id: Mapped[str] = mapped_column(String(30), index=True)
+    seq: Mapped[int] = mapped_column(Integer, default=1)
+    label: Mapped[str] = mapped_column(String(200))          # "total output VAT on the listing"
+    method: Mapped[str] = mapped_column(Text, default="")    # how they say they calculated it
+    stated_amount: Mapped[float] = mapped_column(Numeric(16, 2), default=0)
+    document_name: Mapped[str] = mapped_column(String(160), default="")
+
+    # the parse + the verdict, kept together: what was checked, and what it produced
+    query: Mapped[str] = mapped_column(String(400), default="")      # CalcQuery.describe()
+    query_spec: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    understood: Mapped[str] = mapped_column(Text, default="")        # the parse, in plain words
+    status: Mapped[str] = mapped_column(String(16), default="")      # agree/disagree/not-checkable
+    computed_amount: Mapped[Optional[float]] = mapped_column(Numeric(16, 2), nullable=True)
+    delta: Mapped[float] = mapped_column(Numeric(16, 2), default=0)
+    explanation: Mapped[str] = mapped_column(Text, default="")       # engine-authored
+    parse_source: Mapped[str] = mapped_column(String(24), default="")  # claude | auditor | ...
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

@@ -23,13 +23,14 @@ import os
 from typing import Iterator
 
 from ..config import settings
-from .schemas import NextBestAction, TaxpayerSummary, LetterExtraction
+from .schemas import NextBestAction, TaxpayerSummary, LetterExtraction, CalcQuerySpec
 from .prompts import (
     FROZEN_PREAMBLE, build_context, build_history_context,
     NARRATE_INSTR, NBA_INSTR, SUMMARY_INSTR, REPORT_INSTR,
     LETTER_SYSTEM, LETTER_INSTR, build_letter_context, fence_letter,
     DRAFT_LETTER_SYSTEM, DRAFT_REQUEST_INSTR, DRAFT_FOLLOWUP_INSTR,
     DRAFT_VERDICT_INSTR, fence_facts,
+    CALC_SYSTEM, CALC_INSTR, build_calc_context, fence_calc,
 )
 from .verify import (
     verify_claims, verify_conclusion, verify_correspondence, render_placeholders, StreamGuard,
@@ -382,6 +383,56 @@ class LLMService:
                     "mode": "fallback", "violations": v["violations"]}
         return {"text": raw.strip(), "source": "claude", "verified": True,
                 "mode": "live", "violations": []}
+
+    # ------------------------------------------------------- FEATURE 7: CALCULATION PARSER
+    def parse_calculation(self, description: str, docs: list[dict]) -> dict:
+        """Translate the auditor's stated method into an executable query. No arithmetic.
+
+        Returns the query as a plain dict for `agents.calculation.query_from_dict`, which
+        re-validates it against the closed algebra — so a model that strays outside the schema
+        is caught twice: once by the structured output, once by the executor.
+
+        With no credentials this returns `checkable: False`, and the caller falls back to the
+        auditor picking the operation and column by hand. That path is not a degraded guess —
+        it is the same query, specified by a person instead of parsed from a sentence.
+        """
+        fallback = {"op": "", "column": "", "filters": [], "document": "",
+                    "understood": "Automated reading is unavailable — choose the operation and "
+                                  "column to check against.",
+                    "checkable": False}
+        text = (description or "").strip()
+        if not text:
+            return {**fallback, "understood": "Describe how the figure was calculated.",
+                    "source": "deterministic-fallback"}
+        enabled, reason = availability()
+        if not enabled:
+            return {**fallback, "source": _src(reason)}
+        try:
+            resp = _client().messages.parse(
+                model=MODEL, max_tokens=800, thinking={"type": "adaptive"},
+                system=[{"type": "text", "text": CALC_SYSTEM,
+                         "cache_control": {"type": "ephemeral"}}],
+                messages=[{"role": "user", "content": [
+                    {"type": "text", "text": build_calc_context(docs)},
+                    {"type": "text", "text": CALC_INSTR},
+                    {"type": "text", "text": fence_calc(text[:2000])},
+                ]}],
+                output_format=CalcQuerySpec,
+            )
+            if resp.stop_reason == "refusal":
+                raise _Refusal()
+            spec = _parsed(resp, CalcQuerySpec)
+        except _Refusal:
+            return {**fallback, "source": "blocked-refusal"}
+        except Exception:
+            return {**fallback, "source": "api-error"}
+
+        out = spec.model_dump()
+        # The parser is a translator. Any digit in `understood` means it started answering the
+        # question instead of restating the method, so the sentence is not shown.
+        if any(ch.isdigit() for ch in out.get("understood", "")):
+            out["understood"] = "Method parsed — check the query below before relying on it."
+        return {**out, "source": "claude"}
 
 
 llm = LLMService()  # module singleton
