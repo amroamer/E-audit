@@ -1,31 +1,43 @@
 """The PoC's scope fence — what this demo reconciles, and what it deliberately does not.
 
-A VAT return is not the e-invoice population restated. It is the tax-point-adjusted
-e-invoice population *plus* populations that carry no domestic e-invoice at all
-(imports, reverse charge, exempt supplies), *plus* adjustments, prior-period
-corrections and timing movements.
+A VAT return is not the taxpayer's sales listing restated. It is the tax-point-adjusted
+population *plus* populations that appear in no listing at all (imports, reverse charge,
+exempt supplies), *plus* adjustments, prior-period corrections and timing movements.
 
-This PoC reconstructs one slice of that picture and is explicit about the rest.
-Each exclusion is tagged with the reason code that would carry it, so the gap is a
-stated design boundary with a named home in the taxonomy — not an oversight.
+This PoC works one slice of that picture and is explicit about the rest. Each exclusion is
+tagged with the reason code that would carry it, so the gap is a stated design boundary with a
+named home in the taxonomy — not an oversight.
+
+The population is whatever the taxpayer sent. Planning is out of scope, so there is no
+risk-engine feed and no pre-computed reconciliation; the e-invoice tables remain only as the
+fallback for a case with no upload, which is why the exclusions below are still phrased against
+what an e-invoice feed would and would not carry.
 """
 from __future__ import annotations
 
 from .rule_taxonomy import REASON_CODES
 
 HEADLINE = (
-    "This demo reconciles the standard-rated sales and purchase boxes for a single "
-    "quarter, against cleared FATOORA e-invoices. Everything below the line is a "
-    "real part of the problem that this PoC does not attempt."
+    "This demo starts when the taxpayer's documents arrive. It checks them against the "
+    "request that was sent, then reconciles the standard-rated sales and purchase boxes for "
+    "a single quarter from the records supplied. Everything below the line is a real part of "
+    "the problem that this PoC does not attempt."
 )
 
 IN_SCOPE: tuple[dict[str, str], ...] = (
+    {"item": "Was the response what we asked for",
+     "detail": "The email the auditor sent becomes a checkable spec; the spreadsheets are "
+               "tested against it for missing items, missing columns, blank mandatory fields, "
+               "period coverage and totals that do not foot."},
     {"item": "Standard-rated sales (output VAT)",
-     "detail": "Rebuilt from cleared sale e-invoices by aggregating TAXSUBTOTAL for tax "
-               "category S at 15%."},
+     "detail": "Summed from the lines of the taxpayer's own listing that qualify for this box "
+               "and this period. The e-invoice feed is the fallback where nothing was sent."},
     {"item": "Standard-rated purchases (input VAT)",
-     "detail": "Rebuilt from cleared purchase e-invoices — the supplier-side documents on "
-               "which this taxpayer is the buyer."},
+     "detail": "The same, on the purchase side — the documents on which this taxpayer is "
+               "the buyer."},
+    {"item": "Four agents over the records received",
+     "detail": "Regulations, Data Entry, Calculation and Evidence & Coverage each propose what "
+               "is worth testing; a deterministic adjudicator settles every one."},
     {"item": "One tax period, one return version",
      "detail": "2025 Q1, the return currently on file. No amendment history, no rolling "
                "re-reconciliation as later documents arrive."},
