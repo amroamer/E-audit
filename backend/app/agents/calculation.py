@@ -133,6 +133,7 @@ class CalcResult:
     value: float | None = None
     matched: int = 0                  # rows the filters admitted
     scanned: int = 0                  # rows in the document
+    readable: int = 0                 # of the matched rows, those carrying a usable value
     column: str = ""
     document: str = ""
     query: str = ""
@@ -141,8 +142,9 @@ class CalcResult:
 
     def to_dict(self) -> dict:
         return {"status": self.status, "value": self.value, "matched": self.matched,
-                "scanned": self.scanned, "column": self.column, "document": self.document,
-                "query": self.query, "rows": self.rows, "note": self.note}
+                "scanned": self.scanned, "readable": self.readable, "column": self.column,
+                "document": self.document, "query": self.query, "rows": self.rows,
+                "note": self.note}
 
 
 MAX_CITED_ROWS = 8
@@ -221,11 +223,13 @@ def run(query: CalcQuery, doc: dict) -> CalcResult:
 
     if query.op == "count":
         value: float | None = float(len(kept))
+        readable = len(kept)
     else:
         raw = [r[idx] for r in kept if idx < len(r)]
         if query.op == "count_distinct":
-            value = float(len({str(v).strip().lower() for v in raw
-                               if v is not None and str(v).strip()}))
+            present = {str(v).strip().lower() for v in raw if v is not None and str(v).strip()}
+            value = float(len(present))
+            readable = sum(1 for v in raw if v is not None and str(v).strip())
         else:
             nums = [n for n in (as_number(v) for v in raw) if n is not None]
             if not nums:
@@ -233,6 +237,10 @@ def run(query: CalcQuery, doc: dict) -> CalcResult:
                     status=NOT_CHECKABLE, query=query.describe(), document=name,
                     column=query.column, matched=len(kept), scanned=len(rows),
                     note=f"No numeric values in '{query.column}' for the rows selected.")
+            readable = len(nums)
+            # An unreadable cell is skipped, not counted as zero — the same rule the population
+            # follows. An average therefore divides by the rows that carried a value, which is
+            # also what the auditor's spreadsheet did.
             value = {"sum": sum(nums), "average": sum(nums) / len(nums),
                      "max": max(nums), "min": min(nums)}[query.op]
 
@@ -241,7 +249,7 @@ def run(query: CalcQuery, doc: dict) -> CalcResult:
              for r in kept[:MAX_CITED_ROWS]]
 
     return CalcResult(status="ok", value=round(float(value), 2), matched=len(kept),
-                      scanned=len(rows), column=query.column, document=name,
+                      scanned=len(rows), readable=readable, column=query.column, document=name,
                       query=query.describe(), rows=cited)
 
 
@@ -283,6 +291,11 @@ def verify(stated: float, query: CalcQuery, doc: dict,
     delta = round(res.value - stated, 2)
     where = f" over {res.matched} of {res.scanned} rows" if res.matched != res.scanned \
         else f" over all {res.scanned} rows"
+    # Say when rows were skipped for having nothing to read. Otherwise an auditor comparing
+    # against their own sheet sees "over all 22 rows" and has no way to know that three of them
+    # carried no figure at all — which is exactly the gap the completeness check already flags.
+    if res.readable and res.readable != res.matched:
+        where += f" ({res.matched - res.readable} with no readable {res.column} skipped)"
     if abs(delta) <= tolerance:
         return Verification(
             status=AGREE, stated=stated, computed=res.value, delta=delta, result=res,

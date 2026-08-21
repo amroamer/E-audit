@@ -584,9 +584,11 @@ class AskIn(BaseModel):
 
 
 class CheckIn(BaseModel):
-    label: str
+    label: str = ""
     method: str = ""
-    stated_amount: float
+    # Optional: the auditors write freely — "I summed the VAT column and got 2,618,000" states
+    # the figure in the same breath as the method, and made them retype it into its own box.
+    stated_amount: float | None = None
     document_name: str = ""
     spec: dict | None = None
 
@@ -601,8 +603,16 @@ def calc_ask(case_id: str, body: AskIn, db: Session = Depends(get_db)):
 @router.post("/cases/{case_id}/calc/check")
 def calc_check(case_id: str, body: CheckIn, db: Session = Depends(get_db)):
     """Record a figure the auditor calculated and verify it against the source documents."""
+    from ..agents import calc_language
+
     _case_or_404(db, case_id)
-    out = calc_service.check(db, case_id, body.label, body.method, body.stated_amount,
+    stated = body.stated_amount
+    if stated is None:
+        stated = calc_language.stated_amount_in(body.method)
+    if stated is None:
+        raise HTTPException(422, "No figure to check — state the amount you arrived at.")
+    label = body.label or calc_language.label_for(body.method) or "Auditor calculation"
+    out = calc_service.check(db, case_id, label, body.method, stated,
                              body.spec, body.document_name)
     db.add(EventLog(case_id=case_id, actor="auditor", action="calculation-checked",
                     payload={"label": body.label, "status": out["status"],

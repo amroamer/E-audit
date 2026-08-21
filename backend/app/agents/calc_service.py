@@ -1,9 +1,13 @@
 """Drive the calculation agent: parse the auditor's method, execute it, record the verdict.
 
-Three steps, and the split between them is the safety property. The model turns a sentence into
-a query (`llm.parse_calculation`), Python executes the query (`calculation.run`), and the result
-is written down with the query beside it. Nobody has to trust the model's arithmetic, because
-the model never performs any.
+Three steps, and the split between them is the safety property. A sentence becomes a query,
+Python executes the query (`calculation.run`), and the result is written down with the query
+beside it. Nobody has to trust the model's arithmetic, because the model never performs any.
+
+Reading the sentence has two passes. `calc_language.read_method` handles the plain ones with a
+cue table — a total of a named column over a named file is not judgement work — and only what it
+declines goes to `llm.parse_calculation`. That ordering is the usual one here, and it is also
+what keeps the feature alive with no API key.
 
 Two entry points, because the auditors described two habits:
 
@@ -23,7 +27,7 @@ from sqlalchemy.orm import Session
 
 from ..llm.service import llm
 from ..models import AuditorCalculation, ReceivedDocument
-from . import calculation as calc
+from . import calc_language, calculation as calc
 
 
 def documents_for(db: Session, case_id: str) -> list[dict]:
@@ -52,11 +56,24 @@ def _resolve(description: str, docs: list[dict],
     An auditor-supplied spec is used as-is and never sent to a model: if they have already said
     "sum vat_amount", there is nothing to interpret, and interpreting it anyway would only
     introduce a way to get it wrong.
+
+    Failing that, the sentence is read deterministically first and put to a model only if that
+    reading declines. The deterministic pass refuses anything carrying a condition it cannot
+    express, so the model is reached for exactly the sentences that need judgement.
     """
     if spec:
         q = calc.query_from_dict(spec)
         return q, spec, "Specified by the auditor.", "auditor"
+    read = calc_language.read_method(description, docs)
+    if read.get("checkable"):
+        q = calc.query_from_dict(read)
+        if q is not None:
+            return q, read, read.get("understood", ""), "deterministic"
     parsed = llm.parse_calculation(description, docs)
+    if not parsed.get("checkable") and read.get("understood"):
+        # The model added nothing. Say what the deterministic reading saw rather than the
+        # generic "automated reading is unavailable" — it names what to fix.
+        parsed = {**parsed, "understood": read["understood"]}
     if not parsed.get("checkable"):
         return None, parsed, parsed.get("understood", ""), parsed.get("source", "")
     q = calc.query_from_dict(parsed)

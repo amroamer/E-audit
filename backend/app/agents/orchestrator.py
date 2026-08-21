@@ -78,10 +78,24 @@ def investigate(recon: dict, *, prior_returns: list[dict] | None = None,
             {"leading": None, "explained": 0.0, "unexplained": 0.0, "conclusion": conclusion})
         return Investigation(case_id=recon["case_id"], rounds=1, entries=entries,
                              hypotheses=[], adjudications=[], leading=None,
-                             conclusion=conclusion, unexplained=0.0, source="deterministic")
+                             conclusion=conclusion, unexplained=0.0, source="deterministic",
+                             findings=[], exposure=exposure([]))
 
     # ---- round 1: evidence agents propose (parallel fan-out; no interdependence)
-    hypotheses = propose_recon(ctx) + propose_documents(ctx)
+    #
+    # Which roster is live depends on where the population came from. The four named agents read
+    # the taxpayer's uploaded documents and are the whole roster under the current scope. The
+    # reconstruction and historical-pattern detectors reason about the e-invoice feed and the
+    # return history — the planning-era inputs — so on a case built from an uploaded listing they
+    # have nothing to say, and a confirmed hypothesis that can never carry an outcome code is
+    # precisely the noise the roster design exists to avoid. They stay live on the feed path,
+    # which is why they are gated rather than deleted.
+    #
+    # The recomputation control runs on both paths regardless: it checks OUR arithmetic, and a
+    # case that looks settled because a figure was transcribed wrongly must not be waved through.
+    from_documents = recon.get("population_source") == "document"
+    hypotheses = (recomputation(ctx) if from_documents else propose_recon(ctx)) \
+        + propose_documents(ctx)
     for h in hypotheses:
         add(1, "hypothesis", h.agent,
             {"id": h.id, "claim": h.claim, "why": h.why, "test": h.test.describe(),

@@ -173,7 +173,9 @@ backend/app/
                        #   document_tests.py  how each is settled over the rows
                        #   findings.py        confirmed -> the Authority's wording
                        #   calculation.py     the closed query algebra
+                       #   calc_language.py   read the stated method without a model
                        #   calc_service.py    ask / check, persisted
+  reporting/           # audit_report.py — the Authority's own template, section by section
   api/routes.py        # FastAPI endpoints
   models/              # core.py, dossier.py, casework.py, config_tables.py, recon.py
   llm/                 # the ONLY Claude boundary: service, prompts, verify, schemas
@@ -227,14 +229,39 @@ because the new Data Entry agent is the same specialist under the name the audit
 running both put duplicate DE-01s on the case file. `test_roster.py` checks the *combined*
 roster for id collisions — each roster was unique on its own, which is how that got through.
 
+**Which roster is live follows the population.** On a case built from an uploaded listing
+(`population_source == "document"` — the current scope) the four named agents are the whole
+roster. `detectors.reconstruction_analyst` and `detectors.historical_pattern` reason about the
+e-invoice feed and the return history, the planning-era inputs, so against a spreadsheet they
+have nothing to say — and they carry no `outcome_code`, so a confirmed one produces an agent
+name on the screen and no finding under it. They stay live on the feed path, gated in
+`orchestrator.investigate` rather than deleted. `detectors.recomputation` runs on **both**
+paths: it checks *our* arithmetic, and a case that looks settled because a figure was
+transcribed wrongly is exactly the case that must not be waved through.
+
 ## The auditor's own arithmetic
 
 `app/agents/calculation.py` answers questions off the uploaded documents and checks figures the
-auditor worked out by hand. **The model never does arithmetic**: it translates a described
-method into a `CalcQuery` from a closed algebra, and Python executes it. A misread method
+auditor worked out by hand. **The model never does arithmetic**: a described method is
+translated into a `CalcQuery` from a closed algebra, and Python executes it. A misread method
 therefore surfaces as a visible wrong query, never as a wrong number wearing the engine's
 authority.
 
+The input is a sentence, because that is how the auditors said they work — *"I calculated X, Y,
+Z. This is what I got. Can you check it?"* Reading it has two passes:
+
+- **`calc_language.read_method` first.** A total of a named column over a named file is a cue
+  table, not judgement. It also lifts the figure out of the sentence (`stated_amount_in`), so
+  nothing has to be retyped into a separate box. This is what keeps the feature alive with no
+  API key — the alternative was a dead panel, not a degraded one.
+- **`llm.parse_calculation` for the rest.** Only what the first pass declines.
+
+Four refusals matter more than any of that:
+
+- A method carrying a **condition** the deterministic pass cannot express — "for January only",
+  "excluding the credit notes", "over SAR 50,000" — is **declined outright**, never flattened to
+  a bare aggregation. Totalling the whole file and then reporting the auditor's *correct* figure
+  as a disagreement is the most expensive mistake this agent can make.
 - A method outside the algebra is reported **not-checkable** rather than approximated by a query
   that answers something else.
 - With several documents on a case and none named, the agent **asks which** rather than
@@ -242,6 +269,10 @@ authority.
   precisely the error this agent exists to catch.
 - An auditor-supplied query is used verbatim and never sent to a model — there is nothing to
   interpret, and interpreting it anyway would only add a way to get it wrong.
+
+A cell with nothing readable in it is **skipped, not counted as zero** — the same rule the
+population follows — and the explanation says how many were skipped. An auditor comparing
+against their own sheet cannot otherwise tell that "over all 22 rows" involved 19.
 
 ## Where the lines come from
 
@@ -372,7 +403,16 @@ Open http://localhost:5174.
   brands.
 - Frontend build check: `npm run build` (runs `tsc --noEmit` + Vite build).
 - Backend syntax check: `python -m compileall -q app`.
-- Guard tests: `pytest backend/tests` (238 at last count).
+- Guard tests: `pytest backend/tests` (338 at last count). Three layers, and they answer
+  different questions — keep them apart:
+  - **unit** (`test_roster.py`, `test_pipeline.py`, `test_calculation.py`, …) — is this piece
+    right, on a fixture built to isolate it?
+  - **SIT** (`test_sit_agents.py`) — do all four agents behave over realistic KSA VAT material?
+    Every scenario asserts what must *not* be raised as well as what must.
+  - **UAT** (`test_uat_journey.py`, `test_uat_edge_cases.py`) — can an auditor do the job, over
+    HTTP, with no API key? The journey walk plus the awkward cases a stakeholder reaches for.
+  `test_uat_journey.py` needs `httpx` (`pip install -r backend/requirements-dev.txt`); it skips
+  rather than fails without it.
 - When editing the engine, remember: **the numbers live in Python, the words
   live in Claude.** If a change would have Claude produce a figure, route the
   figure through a placeholder instead — or, for outbound letters, put it in the
@@ -386,8 +426,11 @@ Open http://localhost:5174.
 
 ## Inputs still needed from the auditors
 
-- The **audit report template** — the closure drafter should target the real
-  layout, not ours.
+- ~~The **audit report template**~~ — supplied. `app/reporting/audit_report.py` builds its six
+  sections in the template's own order. A field the case cannot answer says which kind of gap it
+  is: `[not held]` for something ZATCA holds in another system, `[for the auditor to complete]`
+  for a judgement the tool has no business making. Filling either from a guess would put an
+  invented fact under the Authority's letterhead.
 - A **real (redacted) information request** — it defines `required_columns`, and
   the completeness checker is only as good as that spec.
 - **The regulations articles.** The Regulations agent is cite-or-drop: it may not assert a

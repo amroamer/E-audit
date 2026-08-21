@@ -1,0 +1,4 @@
+# Test-only dependencies. The app itself needs nothing here.
+-r requirements.txt
+pytest>=8.0
+httpx>=0.27          # FastAPI's TestClient transport, for the API acceptance walk
