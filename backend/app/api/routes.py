@@ -507,6 +507,63 @@ def verdict(case_id: str, db: Session = Depends(get_db)):
     return draft_verdict(case, case.taxpayer, recon, inv, inv.get("findings"))
 
 
+# ============================================================ THE AUDIT REPORT
+# The auditors asked for two outputs, not one: the email and the audit report. This is the
+# second. It targets the Authority's own template rather than a layout of ours, and a field the
+# case cannot answer says which kind of gap it is instead of being filled from a guess.
+
+def _audit_report(db: Session, case_id: str) -> dict:
+    """Assemble the report from everything on the case file."""
+    from ..agents.calc_service import documents_for
+    from ..reporting import audit_report
+
+    case = _case_or_404(db, case_id)
+    recon = reconcile_case(db, case_id, persist=False)
+    inv = investigate_case(case_id, db)
+
+    req = req_service.current_request(db, case_id)
+    requested = [{"key": i.catalog_key, "label": i.label} for i in (req.items if req else [])]
+    gaps = [{"item_label": g.item_label, "kind": g.kind, "severity": g.severity,
+             "detail": g.detail, "citation": g.citation}
+            for g in db.scalars(select(GapFinding)
+                                .where(GapFinding.case_id == case_id,
+                                       GapFinding.round == (req.seq if req else 1))
+                                .order_by(GapFinding.id)).all()]
+    return audit_report.build(
+        case, case.taxpayer, recon, inv,
+        priority=score_case(db, case), requested=requested,
+        received=documents_for(db, case_id), gaps=gaps)
+
+
+@router.get("/cases/{case_id}/audit-report")
+def audit_report_view(case_id: str, db: Session = Depends(get_db)):
+    """The audit report, section by section, in the template's own order."""
+    return _audit_report(db, case_id)
+
+
+@router.get("/cases/{case_id}/audit-report.doc")
+def audit_report_word(case_id: str, db: Session = Depends(get_db)):
+    """The same report as a Word document. One render serves Word and print — see reporting."""
+    from ..reporting import render
+
+    report = _audit_report(db, case_id)
+    return Response(
+        content=render.to_html(report, for_word=True).encode("utf-8"),
+        media_type="application/msword",
+        headers={"Content-Disposition":
+                 f'attachment; filename="{render.filename_for(report, "doc")}"'})
+
+
+@router.get("/cases/{case_id}/audit-report.html")
+def audit_report_print(case_id: str, db: Session = Depends(get_db)):
+    """The printable page. The browser's own print-to-PDF is the PDF renderer."""
+    from ..reporting import render
+
+    report = _audit_report(db, case_id)
+    return Response(content=render.to_html(report).encode("utf-8"),
+                    media_type="text/html; charset=utf-8")
+
+
 @router.get("/demo/response-file")
 def demo_response_file():
     """The taxpayer's deficient sales analysis, so the upload path can be demonstrated live."""

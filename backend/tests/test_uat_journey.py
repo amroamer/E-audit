@@ -502,3 +502,38 @@ def test_the_lifecycle_says_whose_move_it_is(api):
     for s in active:
         assert s["owner"] in ("auditor", "taxpayer", "system"), s["owner"]
         assert s["next_action"], f"stage '{s['label']}' is active but names no next action"
+
+
+def test_the_report_downloads_as_word_and_as_a_printable_page(api):
+    """'Outcome should be two things: email + audit report.' And it has to leave the screen."""
+    from app.reporting import render
+
+    word = api.get(f"/api/cases/{CASE}/audit-report.doc")
+    assert word.status_code == 200
+    assert word.headers["content-type"].startswith("application/msword")
+    disposition = word.headers["content-disposition"]
+    assert "attachment" in disposition
+    assert CASE in disposition, "an auditor has to be able to find the file again"
+
+    printable = api.get(f"/api/cases/{CASE}/audit-report.html")
+    assert printable.status_code == 200
+    body = printable.text
+    assert "window.print()" in body, "print-to-PDF is the PDF renderer"
+
+    # Both come from one render, so a Word export and a PDF cannot drift apart on a case.
+    report = _json(api.get(f"/api/cases/{CASE}/audit-report"))
+    for section in report["sections"]:
+        assert section["title"] in body
+
+
+def test_an_unanswered_field_is_visible_in_the_download_not_dropped(api):
+    """A report that hid its gaps would look finished when it is not."""
+    from app.reporting import audit_report
+
+    body = api.get(f"/api/cases/{CASE}/audit-report.html").text
+    report = _json(api.get(f"/api/cases/{CASE}/audit-report"))
+    outstanding = [f for s in report["sections"] for f in s["fields"] if not f["held"]]
+    assert outstanding, "this case should have fields only a person can fill"
+    for marker in (audit_report.NOT_HELD, audit_report.FOR_AUDITOR):
+        if any(f["value"] == marker for f in outstanding):
+            assert marker in body, f"{marker!r} was dropped from the download"

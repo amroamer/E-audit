@@ -95,7 +95,9 @@ def case_information(case, priority: dict | None = None) -> Section:
               date.today().isoformat() if case.status == "closed" else FOR_AUDITOR),
         Field("Priority", _priority_band(score),
               f"Composite score {score}/100 — exposure, deadline, history, quick-win."),
-        Field("Priority risk", _priority_band(score)),
+        Field("Priority risk", _priority_band(score),
+              "The template carries this alongside Priority. The case holds one composite "
+              "score, so both are derived from it rather than one being invented."),
         Field("Audit Case Type",
               "Limited Scope Audit" if (case.audit_type or "desk") == "desk"
               else str(case.audit_type),
