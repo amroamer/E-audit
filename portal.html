@@ -2834,8 +2834,31 @@ function soonCard(title, why) {
    headings with nothing under them read as a broken page; one honest note reads as a boundary. */
 function viewDossier(caseId) {
   const d = (DATA.dossiers || {})[caseId];
-  if (!d) return '<div class="page"><div class="panel"><div class="notice err">No taxpayer record for ' +
-    esc(caseId) + '.</div></div></div>';
+  if (!d) {
+    // A closed prior period reached by URL. It is a real case -- it is the one the audit history
+    // on the live case points at -- so say what it was rather than reporting it as missing.
+    const c0 = caseById(caseId);
+    const tp0 = c0 ? taxpayerById(c0.taxpayer_id) : null;
+    if (!c0) return '<div class="page"><div class="panel"><div class="notice err">No case ' +
+      esc(caseId) + ' in this build.</div></div></div>';
+    return '<div class="page">' +
+      '<div class="page-head"><div><p class="eyebrow">Closed case</p><h1>' +
+      esc((tp0 && tp0.name) || caseId) + '</h1></div></div>' +
+      '<div class="panel"><div class="panel-head"><h2>' + esc(caseId) + '</h2>' +
+      '<span class="pill status">closed</span></div>' +
+      '<div class="panel-body"><div class="factstrip">' +
+      '<div class="fact"><span class="fact-k">Period</span><span class="fact-v">' +
+      esc(c0.period_from + " to " + c0.period_to) + '</span></div>' +
+      '<div class="fact"><span class="fact-k">Referred for</span><span class="fact-v">' +
+      esc(REFERRAL_REASON[c0.reason] || c0.reason || "—") + '</span></div>' +
+      '<div class="fact"><span class="fact-k">Outcome</span><span class="fact-v">' +
+      esc(c0.audit_result_type || "—") + '</span></div>' +
+      '<div class="fact"><span class="fact-k">Root cause</span><span class="fact-v mono">' +
+      esc(c0.root_cause_code || "—") + '</span></div>' +
+      '</div><p class="detail-note" style="margin:12px 0 0">This period is closed, so no working ' +
+      'papers were assembled for it. It appears here because it is the prior audit the live ' +
+      'case checks for a repeat.</p></div></div></div>';
+  }
   const tp = d.taxpayer;
   const h = tp.audit_history || {};
   const c = caseById(caseId);
