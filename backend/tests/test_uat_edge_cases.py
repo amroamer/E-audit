@@ -215,12 +215,21 @@ def test_a_column_the_document_does_not_have_is_never_named():
     assert read["column"] == ""
 
 
-def test_the_label_is_cut_at_a_word_and_not_mid_number():
-    """A calculation the auditor did not name still goes in the case file under a readable name."""
-    label = calc_language.label_for(
-        "I summed the VAT column on the sales analysis and got 2,618,000 - can you check it?")
-    assert label == "I summed the VAT column on the sales analysis"
-    assert not label.endswith(" ")
+@pytest.mark.parametrize("sentence,expected", [
+    ("I summed the VAT column on the sales analysis and got 2,618,000 - can you check it?",
+     "I summed the VAT column on the sales analysis"),
+    ("sum of the VAT column for January only on the sales analysis, I got 800,000",
+     "sum of the VAT column for January only on the sales analysis"),
+    ("total of the taxable amount, we make it 17,453,333", "total of the taxable amount"),
+    ("average VAT per invoice", "average VAT per invoice"),
+])
+def test_the_label_is_the_method_without_the_answer(sentence, expected):
+    """A calculation the auditor did not name still goes in the case file under a readable name.
+
+    Cutting at a character count instead puts "…and got 2,618,000 - can you check " on the case
+    file as the name of the check, and cutting before the pronoun leaves a dangling "I".
+    """
+    assert calc_language.label_for(sentence) == expected
 
 
 def test_naming_no_document_among_several_asks_which_rather_than_guessing():

@@ -106,7 +106,8 @@ def label_for(text: str, limit: int = 72) -> str:
     t = " ".join((text or "").split())
     if not t:
         return ""
-    t = re.split(r"\s+(?:and\s+)?(?:got|get|make it|makes it|comes to|came to|arrived at)\b|"
+    t = re.split(r"[,;]?\s+(?:and\s+)?(?:i|we|it)?\s*"
+                 r"(?:got|get|make it|makes it|comes to|came to|arrived at)\b|"
                  r"\s+[-—–]\s+|[?]", t, maxsplit=1, flags=re.I)[0].strip(" .,:;")
     if len(t) <= limit:
         return t

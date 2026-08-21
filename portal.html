@@ -1812,18 +1812,37 @@ function verifyCalc(stated, query, doc) {
 
 /* the auditor's recorded calculations, per case — the portal's mutable state for this panel */
 const CALCS = {};
+/* A short name for a calculation the auditor did not name: everything before they say what
+   they got. Cutting at 130 characters instead puts "...and got 2,618,000 - can you check " in
+   the case file as the name of the check. Mirror of `calc_language.label_for`. */
+function calcLabel(text, limit) {
+  const cap = limit || 72;
+  let t = String(text || "").replace(/\s+/g, " ").trim();
+  if (!t) return "";
+  t = t.split(/[,;]?\s+(?:and\s+)?(?:i|we|it)?\s*(?:got|get|make it|makes it|comes to|came to|arrived at)\b|\s+[-\u2014\u2013]\s+|[?]/i)[0]
+       .replace(/[\s.,:;]+$/, "");
+  if (t.length <= cap) return t;
+  return (t.slice(0, cap).replace(/\s+\S*$/, "") || t.slice(0, cap)).replace(/[\s.,:;]+$/, "") + "\u2026";
+}
+
 function recordCalcFromText(caseId, text, docs) {
   const list = (CALCS[caseId] = CALCS[caseId] || []);
-  const label = String(text).trim().replace(/\s+/g, " ").slice(0, 130);
+  const label = calcLabel(text);
   const stated = statedAmountIn(text);
   const parsed = parseMethod(text, docs);
   const push = (o) => list.push({ seq: list.length + 1, label, stated: stated || 0,
                                   understood: parsed.understood, ...o });
 
-  if (!parsed.op)
-    return push({ status: "not-checkable", computed: null, delta: 0, understood: "",
-      explanation: "Could not tell what calculation was done. Name it \u2014 summed, counted, " +
-        "averaged \u2014 and the column it was over." });
+  // Anything the reading declined stops here, with the reason it declined. The important one is
+  // a condition it cannot express: recomputing the whole file and calling the auditor's correct
+  // figure wrong is worse than saying the sentence needs breaking down.
+  if (!parsed.checkable)
+    return push({ status: "not-checkable", computed: null, delta: 0,
+      explanation: parsed.understood +
+        (parsed.op && parsed.column
+          ? " Give it as two steps \u2014 the total over the whole file, and the rows you left " +
+            "out \u2014 or pick the column and operation by hand."
+          : "") });
   if (stated === null)
     return push({ status: "not-checkable", computed: null, delta: 0,
       explanation: "Read the method, but there is no figure to check it against. Include the " +
@@ -1835,11 +1854,6 @@ function recordCalcFromText(caseId, text, docs) {
         ? "Several documents are on this case, so it is not clear which one you used. Name one " +
           "of: " + docs.map((x) => x.filename).join(", ") + "."
         : "No document on this case matches what you described." });
-  if (parsed.op !== "count" && !parsed.column)
-    return push({ status: "not-checkable", computed: null, delta: 0,
-      explanation: "Read the method, but not which column it was over. " + doc.filename +
-        " has: " + (doc.columns || []).join(", ") + "." });
-
   const v = verifyCalc(stated, parsed, doc);
   push({ status: v.status, computed: v.computed, delta: v.delta, explanation: v.explanation });
 }
@@ -3154,6 +3168,19 @@ function statedAmountIn(text) {
   return m ? asNumber(m[1]) : null;
 }
 
+/* A clause this parser cannot turn into a filter. Its presence means the sentence is not a bare
+   aggregation, so the reading is wrong even when the operation and column are obvious --
+   totalling the whole file and then reporting the auditor's *correct* January figure as a
+   disagreement is the most expensive thing this panel can do. Mirror of
+   `agents/calc_language.CONDITION_RE`. */
+const CONDITION_RE = new RegExp(
+  "\\b(only|just the|where|excluding|except|apart from|other than|without the|" +
+  "greater than|more than|over|above|less than|below|under|between|at least|" +
+  "before|after|up to|dated|during|in january|in february|in march|in april|in may|in june|" +
+  "in july|in august|in september|in october|in november|in december|" +
+  "first (?:month|quarter|half)|second (?:month|quarter|half)|" +
+  "per (?:month|customer|supplier)|by (?:month|customer|supplier)|blank|missing|empty)\\b", "i");
+
 function parseMethod(text, docs) {
   const t = String(text || "");
   const low = t.toLowerCase();
@@ -3166,17 +3193,33 @@ function parseMethod(text, docs) {
     }) ||
     (docs.length === 1 ? docs[0] : null);
   const cols = (doc && doc.columns) || [];
-  let column =
-    cols.find((c) => low.includes(c.replace(/_/g, " "))) ||
-    cols.find((c) => low.includes(c)) || "";
-  if (!column && op !== "count") {
+  // A plain count is over rows, and the executor ignores the column for it.
+  let column = op === "count" ? "" :
+    (cols.find((c) => low.includes(c.replace(/_/g, " "))) ||
+     cols.find((c) => low.includes(c)) || "");
+  if (!column && op && op !== "count") {
     for (const [re, name] of COLUMN_CUES) {
       if (re.test(t) && cols.includes(name)) { column = name; break; }
     }
   }
-  const said = op === "count" ? "count the rows"
-    : op ? op.replace("_", " ") + " of " + (column || "?") : "";
-  return { op, column, document: (doc && doc.filename) || "", filters: [],
+  if (!op) {
+    return { op: "", column: "", document: "", filters: [], checkable: false,
+             understood: "No calculation was recognised in that description \u2014 say whether " +
+                         "it was a total, a count or an average." };
+  }
+  if (op !== "count" && !column) {
+    return { op, column: "", document: (doc && doc.filename) || "", filters: [],
+             checkable: false,
+             understood: "Read as a " + op.replace("_", " ") + ", but no column in the documents " +
+                         "on file matches the description." };
+  }
+  if (CONDITION_RE.test(t)) {
+    return { op, column, document: (doc && doc.filename) || "", filters: [], checkable: false,
+             understood: "That method sets a condition on which rows to include, which this " +
+                         "reading cannot apply on its own." };
+  }
+  const said = op === "count" ? "count the rows" : op.replace("_", " ") + " of " + column;
+  return { op, column, document: (doc && doc.filename) || "", filters: [], checkable: true,
            understood: said + (doc ? " in " + doc.filename : "") };
 }
 
