@@ -123,10 +123,10 @@ def _narrative(s: dict) -> list[str]:
         if rec["findings"]:
             causes = ", ".join(rec["root_causes"])
             out.append(f"This taxpayer is itself in the comparable set: {rec['cases']} closed "
-                       f"case(s), {rec['findings']} with a finding ({causes}).")
+                       f"case{'' if rec['cases'] == 1 else 's'}, {rec['findings']} with a finding ({causes}).")
         else:
             out.append(f"This taxpayer is itself in the comparable set — {rec['cases']} closed "
-                       f"case(s), none of which resulted in a finding.")
+                       f"case{'' if rec['cases'] == 1 else 's'}, none of which resulted in a finding.")
     return out
 
 

@@ -186,7 +186,7 @@ def _recurrence(h: Hypothesis, ctx: CaseContext) -> Adjudication:
         return Adjudication(
             hypothesis_id=h.id, status="confirmed", amount=0.0,
             detail={"prior_cases": [c["case_id"] for c in hits], "root_causes": codes},
-            explanation=(f"This taxpayer has {len(hits)} prior case(s) closed with a recorded "
+            explanation=(f"This taxpayer has {len(hits)} prior case{'' if len(hits) == 1 else 's'} closed with a recorded "
                          f"root cause ({', '.join(codes)}). The same treatment should be applied "
                          f"unless the facts differ."))
     return Adjudication(hypothesis_id=h.id, status="refuted",

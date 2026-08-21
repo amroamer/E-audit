@@ -161,7 +161,7 @@ def calculation(ctx: CaseContext) -> list[Hypothesis]:
     if unreproduced:
         out.append(Hypothesis(
             id="CA-04", agent=CALCULATION, reason_code="A09", confidence="high",
-            why=f"{len(unreproduced)} figure(s) recorded on this case could not be reproduced "
+            why=f"{len(unreproduced)} figure{'' if len(unreproduced) == 1 else 's'} recorded on this case could not be reproduced "
                 f"from the documents they were said to come from.",
             claim="A figure recorded during the review does not follow from the document it was "
                   "taken from, and should be re-derived before it supports a conclusion.",
@@ -228,7 +228,8 @@ def evidence(ctx: CaseContext) -> list[Hypothesis]:
         out.append(Hypothesis(
             id="EV-05", agent=EVIDENCE, outcome_code="PUR-NOCOOP", reason_code="D01",
             confidence="high",
-            why=f"{len(outstanding)} requested item(s) have still not been supplied.",
+            why=(f"{len(outstanding)} requested item{'' if len(outstanding) == 1 else 's'} "
+                f"{'has' if len(outstanding) == 1 else 'have'} still not been supplied."),
             claim="Items requested from the taxpayer remain outstanding, and claims that depend "
                   "on them cannot be substantiated.",
             test=TestSpec(kind="non-cooperation", box="input")))

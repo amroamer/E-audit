@@ -749,7 +749,7 @@ def step_emails(case_id: str, db: Session = Depends(get_db)):
         out.append({
             "step": "closure", "kind": "verdict",
             "title": "Outcome of the review",
-            "trigger": (f"{len(findings)} finding(s) established" if findings
+            "trigger": (f"{len(findings)} finding{'' if len(findings) == 1 else 's'} established" if findings
                         else "no finding — the declared position is supported"),
             **draft,
         })

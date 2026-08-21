@@ -74,7 +74,9 @@ def score_case(db: Session, case: AuditCase) -> dict:
         "exposure": f"SAR {int(at_stake):,} at stake",
         "deadline": ("past SLA deadline" if days is not None and days < 0
                      else (f"due in {days} days" if days is not None else "no deadline")),
-        "history": (f"{int(prior_findings)} prior finding(s)" if prior_findings else "clean history"),
+        "history": (f"{int(prior_findings)} prior finding"
+                    f"{'' if int(prior_findings) == 1 else 's'}"
+                    if prior_findings else "clean history"),
         "quickwin": f"{round(settled * 100)}% already accounted for",
     }
 

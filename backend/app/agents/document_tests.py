@@ -16,6 +16,11 @@ usable:
 """
 from __future__ import annotations
 
+def _plural(n: int, word: str, plural: str = "") -> str:
+    """'1 line' / '3 lines'. These sentences reach a report and a taxpayer letter, and "line(s)"
+    reads as a note the author never finished."""
+    return f"{n} {word if n == 1 else (plural or word + 's')}"
+
 from datetime import date
 
 from .calculation import as_date, as_number
@@ -182,7 +187,7 @@ def blocked_input(h: Hypothesis, ctx) -> Adjudication:
                         f"VAT is blocked.")
     return Adjudication(
         hypothesis_id=h.id, status="confirmed", amount=round(amount, 2), detail=detail,
-        explanation=(f"{len(hits)} line(s) in {name} describe purchases in blocked categories "
+        explanation=(f"{_plural(len(hits), 'line')} in {name} describe purchases in blocked categories "
                      f"({', '.join(detail['terms'])}), carrying SAR {abs(amount):,.2f} of input "
                      f"VAT. Each needs review against the article before the claim is allowed."))
 
@@ -222,7 +227,7 @@ def missing_support(h: Hypothesis, ctx) -> Adjudication:
             explanation=f"Every line in {name} identifies the invoice and supplier behind it.")
     return Adjudication(
         hypothesis_id=h.id, status="confirmed", amount=round(amount, 2), detail=detail,
-        explanation=(f"{len(unsupported)} line(s) in {name} carry no "
+        explanation=(f"{_plural(len(unsupported), 'line')} in {name} carry no "
                      f"{' or '.join(sorted({m for u in unsupported for m in u['missing']}))}, "
                      f"so SAR {abs(amount):,.2f} of input VAT has nothing behind it."))
 
@@ -360,7 +365,7 @@ def secondary_activity(h: Hypothesis, ctx) -> Adjudication:
             explanation="Every supply described in the listing matches a registered activity.")
     return Adjudication(
         hypothesis_id=h.id, status="confirmed", amount=round(amount, 2), detail=detail,
-        explanation=(f"{len(outside)} line(s) in {name} describe supplies that match none of the "
+        explanation=(f"{_plural(len(outside), 'line')} in {name} describe supplies that match none of the "
                      f"registered activities, carrying SAR {abs(amount):,.2f} of VAT. Review "
                      f"whether they belong to an activity the return does not disclose."))
 
@@ -375,7 +380,7 @@ def non_cooperation(h: Hypothesis, ctx) -> Adjudication:
     return Adjudication(
         hypothesis_id=h.id, status="confirmed", amount=0.0,
         detail={"basis": "non-cooperation", "outstanding": len(outstanding), "items": labels},
-        explanation=(f"{len(outstanding)} requested item(s) remain outstanding"
+        explanation=(f"{_plural(len(outstanding), 'requested item')} {'remains' if len(outstanding) == 1 else 'remain'} outstanding"
                      + (f" — {', '.join(labels)}" if labels else "")
                      + ". Claims that depend on them cannot be substantiated."))
 
@@ -392,7 +397,7 @@ def auditor_figure(h: Hypothesis, ctx) -> Adjudication:
         checked = len(ctx.calculations)
         return Adjudication(
             hypothesis_id=h.id, status="refuted", detail={"checked": checked},
-            explanation=(f"All {checked} recorded figure(s) were reproduced from the documents "
+            explanation=(f"All {_plural(checked, 'recorded figure')} were reproduced from the documents "
                          f"they were taken from." if checked else
                          "No figures have been recorded on this case to check."))
     worst = max(bad, key=lambda c: abs(float(c.get("delta") or 0)))
@@ -403,7 +408,7 @@ def auditor_figure(h: Hypothesis, ctx) -> Adjudication:
                 "items": [{"label": c.get("label"), "stated": c.get("stated"),
                            "computed": c.get("computed"), "delta": c.get("delta")}
                           for c in bad[:MAX_CITED]]},
-        explanation=(f"{len(bad)} recorded figure(s) could not be reproduced. The largest, "
+        explanation=(f"{_plural(len(bad), 'recorded figure')} could not be reproduced. The largest, "
                      f"'{worst.get('label')}', was recorded as SAR "
                      f"{abs(float(worst.get('stated') or 0)):,.2f} against SAR "
                      f"{abs(float(worst.get('computed') or 0)):,.2f} recomputed."))

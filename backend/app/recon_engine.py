@@ -474,7 +474,8 @@ def reconcile_case(db: Session, case_id: str, *, persist: bool = True) -> dict:
     result["population_complete"] = not blocking
     result["population_caveat"] = (
         f"This figure was built from {sale_doc}, which does not yet meet the request "
-        f"({len(blocking)} outstanding point(s)). Treat it as a floor rather than a settled "
+        f"({len(blocking)} outstanding point{'' if len(blocking) == 1 else 's'}). Treat it as a "
+        f"floor rather than a settled "
         f"expected return until the response is complete." if blocking else "")
     result["population_gaps"] = blocking[:6]
     unexplained, state = result["unexplained"], result["state"]

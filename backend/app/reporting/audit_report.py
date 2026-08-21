@@ -267,7 +267,8 @@ def risk_feedback(case, recon: dict, findings: list[dict]) -> Section:
     confirmed = bool(findings)
 
     if confirmed:
-        response = (f"The referral is borne out. {len(findings)} finding(s) were established "
+        response = (f"The referral is borne out. {len(findings)} finding{'' if len(findings) == 1 else 's'} "
+        f"{'was' if len(findings) == 1 else 'were'} established "
                     f"from the records supplied.")
     elif recon.get("difference"):
         response = ("The referral surfaced a real difference, but the records supplied "

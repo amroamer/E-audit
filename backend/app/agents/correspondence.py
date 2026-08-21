@@ -233,7 +233,8 @@ def verdict_facts(case, taxpayer, recon, investigation=None, findings=None) -> s
     ]
     steps = [f for f in recon.get("funnel", []) if f.get("rule")]
     for f in steps:
-        lines.append(f"  - {f['rule']}: {f['label']} — {f['count']} document(s), "
+        lines.append(f"  - {f['rule']}: {f['label']} — {f['count']} "
+                     f"document{'' if f['count'] == 1 else 's'}, "
                      f"SAR {abs(f['amount']):,.2f}")
     if not steps:
         lines.append("  - none")
@@ -272,7 +273,8 @@ def fb_verdict(case, taxpayer, recon, investigation=None, findings=None) -> str:
         body.append("In arriving at that view, the following documents were treated as falling "
                     "outside this return:")
         for f in steps:
-            body.append(f"  - {f['label']}: {f['count']} document(s), "
+            body.append(f"  - {f['label']}: {f['count']} "
+                        f"document{'' if f['count'] == 1 else 's'}, "
                         f"SAR {abs(f['amount']):,.2f}")
         body.append("")
     if recon.get("evidence"):

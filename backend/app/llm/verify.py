@@ -243,9 +243,9 @@ def fb_summary(profile: dict, prior_returns: list, prior_cases: list) -> dict:
     pts = [f"Sector: {profile.get('sector', 'n/a')}; size: {profile.get('size', 'n/a')}; "
            f"accounting basis: {profile.get('accounting_method', 'n/a')}."]
     if amended:
-        pts.append(f"{len(amended)} amended return(s) on file.")
+        pts.append(f"{len(amended)} amended return{'' if len(amended) == 1 else 's'} on file.")
     if prior_cases:
-        pts.append(f"{len(prior_cases)} prior audit case(s) for this taxpayer.")
+        pts.append(f"{len(prior_cases)} prior audit case{'' if len(prior_cases) == 1 else 's'} for this taxpayer.")
     while len(pts) < 2:
         pts.append("Limited prior history available.")
     return {"headline": "Auditor brief assembled from profile and prior filings (deterministic).",
@@ -263,7 +263,8 @@ def fb_report(recon: dict) -> str:
              else f"{_sar(recon['unexplained'])} ({recon['band']}) is still unaccounted for; "
                   f"the case is a **potential finding** pending evidence.")
     steps = "\n".join(
-        f"- {s['label']}: {s['count']} document(s), {_sar(s['amount'])}"
+        f"- {s['label']}: {s['count']} "
+        f"document{'' if s['count'] == 1 else 's'}, {_sar(s['amount'])}"
         + (f" [{s['rule']}]" if s.get("rule") else "")
         for s in recon.get("funnel", []) if s["kind"] in ("exclude", "defer")) \
         or "- No rule removed any document from the population."
